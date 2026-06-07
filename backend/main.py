@@ -5,7 +5,9 @@ import os
 import re
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException
+from pathlib import Path
+
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -14,6 +16,7 @@ from .config import (
     AUTO_MAX_CLIPS,
     AUTO_MAX_LEN,
     AUTO_MIN_LEN,
+    DOWNLOAD_DIR,
     FRONTEND_DIR,
     MAX_CLIP_SECONDS,
     OUTPUT_DIR,
@@ -58,44 +61,91 @@ def health():
     }
 
 
-@app.post("/api/jobs")
-def create_job(req: JobRequest):
-    if not req.url.strip():
-        raise HTTPException(400, "A video URL is required.")
-    if req.mode not in VALID_MODE:
+def _build_job_fields(
+    *, url, mode, reframe, captions, highlight, language, start, end, num_clips
+) -> dict:
+    """Validate shared inputs and build the kwargs for store.create()."""
+    if mode not in VALID_MODE:
         raise HTTPException(400, f"mode must be one of {sorted(VALID_MODE)}.")
-    if req.reframe not in VALID_REFRAME:
+    if reframe not in VALID_REFRAME:
         raise HTTPException(400, f"reframe must be one of {sorted(VALID_REFRAME)}.")
 
     fields = dict(
-        url=req.url.strip(),
-        mode=req.mode,
-        reframe=req.reframe,
-        captions=req.captions,
-        highlight=req.highlight,
-        language=(req.language or None),
+        url=url,
+        mode=mode,
+        reframe=reframe,
+        captions=captions,
+        highlight=highlight,
+        language=(language or None),
     )
 
-    if req.mode == "manual":
+    if mode == "manual":
         try:
-            start = parse_timestamp(req.start)
-            end = parse_timestamp(req.end)
+            start_s = parse_timestamp(start)
+            end_s = parse_timestamp(end)
         except ValueError as exc:
             raise HTTPException(400, str(exc))
-        if start is not None and end is not None:
-            if end <= start:
+        if start_s is not None and end_s is not None:
+            if end_s <= start_s:
                 raise HTTPException(400, "End time must be after start time.")
-            if end - start > MAX_CLIP_SECONDS:
+            if end_s - start_s > MAX_CLIP_SECONDS:
                 raise HTTPException(400, f"Clip is too long (max {MAX_CLIP_SECONDS}s).")
-        fields.update(start=start, end=end)
+        fields.update(start=start_s, end=end_s)
     else:
         fields.update(
-            num_clips=max(1, min(AUTO_MAX_CLIPS, req.num_clips)),
+            num_clips=max(1, min(AUTO_MAX_CLIPS, num_clips)),
             min_len=AUTO_MIN_LEN,
             max_len=AUTO_MAX_LEN,
         )
+    return fields
 
+
+@app.post("/api/jobs")
+def create_job(req: JobRequest):
+    """Start a job from a video URL (downloaded via yt-dlp)."""
+    if not req.url.strip():
+        raise HTTPException(400, "A video URL is required.")
+    fields = _build_job_fields(
+        url=req.url.strip(), mode=req.mode, reframe=req.reframe,
+        captions=req.captions, highlight=req.highlight, language=req.language,
+        start=req.start, end=req.end, num_clips=req.num_clips,
+    )
     job = store.create(**fields)
+    start_job(job)
+    return {"id": job.id}
+
+
+@app.post("/api/uploads")
+async def create_upload_job(
+    file: UploadFile = File(...),
+    mode: str = Form("auto"),
+    reframe: str = Form("blur"),
+    captions: bool = Form(True),
+    highlight: bool = Form(True),
+    language: str = Form(""),
+    start: str = Form(""),
+    end: str = Form(""),
+    num_clips: int = Form(3),
+):
+    """Start a job from a directly uploaded video file (no download)."""
+    fields = _build_job_fields(
+        url="", mode=mode, reframe=reframe, captions=captions, highlight=highlight,
+        language=language, start=start, end=end, num_clips=num_clips,
+    )
+    job = store.create(**fields)
+
+    # Save the upload to disk, named after the job id, then point the job at it.
+    suffix = Path(file.filename or "").suffix.lower() or ".mp4"
+    dest = DOWNLOAD_DIR / f"{job.id}{suffix}"
+    try:
+        with dest.open("wb") as out:
+            while chunk := await file.read(1024 * 1024):
+                out.write(chunk)
+    finally:
+        await file.close()
+
+    job.source_path = str(dest)
+    job.title = Path(file.filename or "upload").stem
     start_job(job)
     return {"id": job.id}
 

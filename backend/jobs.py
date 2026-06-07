@@ -15,12 +15,14 @@ from typing import Dict, List, Optional
 @dataclass
 class Job:
     id: str
-    url: str
+    url: str                     # source URL ("" when a file was uploaded)
     mode: str                    # "auto" | "manual"
     reframe: str
     captions: bool
     highlight: bool
     language: Optional[str]
+    # Source: a local uploaded file to use instead of downloading from `url`.
+    source_path: Optional[str] = None
     # Manual mode:
     start: Optional[float] = None
     end: Optional[float] = None

@@ -24,9 +24,19 @@
       </div>
 
       <form id="clip-form">
-        <label class="field">
+        <div class="sources" id="sources">
+          <button type="button" class="source active" data-source="url">🔗 Paste URL</button>
+          <button type="button" class="source" data-source="upload">📁 Upload file</button>
+        </div>
+
+        <label class="field" data-srcpanel="url">
           <span>Video URL</span>
-          <input type="url" id="url" placeholder="https://www.youtube.com/watch?v=…" required />
+          <input type="url" id="url" placeholder="https://www.youtube.com/watch?v=…" />
+        </label>
+
+        <label class="field hidden" data-srcpanel="upload">
+          <span>Video file <small>(from your device)</small></span>
+          <input type="file" id="file" accept="video/*" />
         </label>
 
         <!-- Auto-mode controls -->

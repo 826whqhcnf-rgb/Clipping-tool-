@@ -1,7 +1,19 @@
 const $ = (id) => document.getElementById(id);
 
 let mode = "auto";
+let source = "url";
 let pollTimer = null;
+
+// --- Source switching (URL vs file upload) -----------------------------------
+document.querySelectorAll(".source").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    source = btn.dataset.source;
+    document.querySelectorAll(".source").forEach((b) => b.classList.toggle("active", b === btn));
+    document.querySelectorAll("[data-srcpanel]").forEach((p) => {
+      p.classList.toggle("hidden", p.dataset.srcpanel !== source);
+    });
+  });
+});
 
 // --- Mode switching ----------------------------------------------------------
 document.querySelectorAll(".mode").forEach((btn) => {
@@ -37,32 +49,60 @@ $("clip-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   if (pollTimer) clearInterval(pollTimer);
 
-  const body = {
-    url: $("url").value,
-    mode,
-    reframe: $("reframe").value,
-    captions: $("captions").checked,
-    highlight: $("highlight").checked,
-    language: $("language").value.trim() || null,
-  };
-  if (mode === "auto") {
-    body.num_clips = parseInt($("num_clips").value, 10) || 3;
-  } else {
-    body.start = $("start").value.trim() || null;
-    body.end = $("end").value.trim() || null;
+  const file = $("file").files[0];
+  if (source === "url" && !$("url").value.trim()) {
+    return showError("Please paste a video URL.");
+  }
+  if (source === "upload" && !file) {
+    return showError("Please choose a video file to upload.");
   }
 
   setBusy(true);
   resetStatus();
+  renderedIds.clear();
   $("results").classList.add("hidden");
   $("clip-grid").innerHTML = "";
 
   try {
-    const res = await fetch("/api/jobs", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    let res;
+    if (source === "upload") {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("mode", mode);
+      fd.append("reframe", $("reframe").value);
+      fd.append("captions", $("captions").checked);
+      fd.append("highlight", $("highlight").checked);
+      fd.append("language", $("language").value.trim());
+      if (mode === "auto") {
+        fd.append("num_clips", parseInt($("num_clips").value, 10) || 3);
+      } else {
+        fd.append("start", $("start").value.trim());
+        fd.append("end", $("end").value.trim());
+      }
+      $("status-message").textContent = "Uploading file…";
+      res = await fetch("/api/uploads", { method: "POST", body: fd });
+    } else {
+      const body = {
+        url: $("url").value,
+        mode,
+        reframe: $("reframe").value,
+        captions: $("captions").checked,
+        highlight: $("highlight").checked,
+        language: $("language").value.trim() || null,
+      };
+      if (mode === "auto") {
+        body.num_clips = parseInt($("num_clips").value, 10) || 3;
+      } else {
+        body.start = $("start").value.trim() || null;
+        body.end = $("end").value.trim() || null;
+      }
+      res = await fetch("/api/jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    }
+
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || "Request failed");
     poll(data.id);

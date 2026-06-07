@@ -40,6 +40,23 @@ h1 { font-size: 2rem; margin: 0; }
   margin-bottom: 20px;
 }
 
+/* Source switch (URL vs upload) */
+.sources { display: flex; gap: 10px; margin-bottom: 18px; }
+.source {
+  flex: 1;
+  padding: 9px 12px;
+  background: var(--card-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font-size: .95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.source.active { border-color: var(--accent); background: #211f3a; }
+input[type="file"] { padding: 9px; }
+
 /* Mode switch */
 .modes { display: flex; gap: 10px; margin-bottom: 20px; }
 .mode {

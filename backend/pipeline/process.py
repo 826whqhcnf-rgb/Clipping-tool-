@@ -15,10 +15,17 @@ def process_job(job, update: Callable[..., None]) -> None:
     work_root = WORK_DIR / job.id
     work_root.mkdir(parents=True, exist_ok=True)
 
-    # 1. Download -----------------------------------------------------------
-    update(stage="download", progress=5, message="Downloading video…")
-    source, title = download_video(job.url, job.id)
-    update(title=title)
+    # 1. Obtain the source video -------------------------------------------
+    from pathlib import Path
+
+    if job.source_path:
+        source = Path(job.source_path)
+        title = job.title or "upload"
+        update(stage="download", progress=10, message="Using uploaded file…")
+    else:
+        update(stage="download", progress=5, message="Downloading video…")
+        source, title = download_video(job.url, job.id)
+        update(title=title)
     duration = ffprobe_duration(source)
 
     # 2. Transcribe (needed for captions, and always for auto highlights) ---

@@ -145,8 +145,11 @@ if you still hit it, either:
 
 The frontend is just a client of a small REST API:
 
-- `POST /api/jobs` — start a job. Body: `{ url, mode, reframe, captions,
-  highlight, language, num_clips?, start?, end? }`. Returns `{ id }`.
+- `POST /api/jobs` — start a job from a URL. Body: `{ url, mode, reframe,
+  captions, highlight, language, num_clips?, start?, end? }`. Returns `{ id }`.
+- `POST /api/uploads` — start a job from an uploaded video file
+  (`multipart/form-data`: `file` + the same fields). Skips downloading
+  entirely — handy when a site blocks server-side downloads.
 - `GET /api/jobs/{id}` — poll status, progress, and finished `clips[]`.
 - `GET /api/clips/{clip_id}` — stream/download a rendered clip (supports HTTP
   range requests, so the in-page player can seek).
