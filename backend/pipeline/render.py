@@ -51,6 +51,8 @@ def build_clip_cmd(
     cmd += [
         "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
         "-pix_fmt", "yuv420p",
+        # Normalize loudness so every clip plays back at a consistent volume.
+        "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",
         "-c:a", "aac", "-b:a", "128k",
         "-movflags", "+faststart",
         str(out),
@@ -67,6 +69,7 @@ def render_clip(
     reframe: str,
     captions: bool,
     highlight: bool,
+    caption_style: str = "karaoke",
 ) -> str:
     """Render one clip to OUTPUT_DIR and return its output filename."""
     work = WORK_DIR / clip_id
@@ -77,7 +80,8 @@ def render_clip(
 
     if captions and words:
         ass = work / "captions.ass"
-        ass.write_text(build_ass(words, highlight=highlight), encoding="utf-8")
+        ass.write_text(build_ass(words, highlight=highlight, preset=caption_style),
+                       encoding="utf-8")
         # Run from the work dir so the subtitles filter gets a clean relative path.
         run(["ffmpeg", "-y", "-i", "vertical.mp4",
              "-vf", "subtitles=captions.ass",
@@ -90,4 +94,5 @@ def render_clip(
 
     out_name = f"{clip_id}.mp4"
     shutil.copy(final, OUTPUT_DIR / out_name)
+    shutil.rmtree(work, ignore_errors=True)  # free disk; the output is saved
     return out_name

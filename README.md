@@ -7,15 +7,18 @@ Paste a video URL and the tool will:
 
 1. **Download** it (via `yt-dlp`)
 2. **Transcribe** the speech (via `faster-whisper`, with word-level timing)
-3. **Find the best moments automatically** — Claude reads the transcript and
-   picks the most viral, self-contained clips, each with a **title**, a
-   **virality score**, and a one-line reason (this is the "Auto" mode). Or pick
-   an exact time range yourself in "Manual" mode.
+3. **Find the best moments automatically** — an LLM (free Gemini, or Claude)
+   reads the transcript and picks the most viral, self-contained clips, each
+   with a **title**, a **virality score**, a reason, and ready-to-post
+   **hashtags** (this is "Auto" mode). Or pick an exact time range in "Manual"
+   mode (which only transcribes the segment you chose, so it's fast).
 4. **Reframe to vertical 9:16** (1080×1920) — blurred background, center crop,
-   or letterbox.
-5. **Burn animated captions** — karaoke-style word highlighting, the popular
-   Shorts/Reels/TikTok look.
-6. Let you **preview and download** each finished Short in the browser.
+   or letterbox — and **normalize loudness** so every clip plays at a
+   consistent volume.
+5. **Burn animated captions** — karaoke word-pop highlighting in selectable
+   styles (karaoke / boxed / clean), the popular Shorts/Reels/TikTok look.
+6. **Preview, copy a caption (title + hashtags), and download** each finished
+   Short in the browser.
 
 > ⚖️ Only clip content you own or have permission to use, and respect each
 > platform's Terms of Service and copyright.
@@ -54,6 +57,14 @@ Then open **http://localhost:8000**.
 (`run.sh` creates a virtualenv and installs dependencies on first run. To do it
 manually: `pip install -r requirements.txt` then
 `uvicorn backend.main:app --reload`.)
+
+### Run it in the browser (GitHub Codespaces)
+
+No local install needed — good for iPad/Chromebook. On GitHub: **`<> Code` →
+Codespaces → Create codespace**. The included devcontainer installs `ffmpeg` +
+dependencies and **auto-starts the server**, then opens port 8000. To use the
+free Gemini picker, add a Codespaces **secret** named `GEMINI_API_KEY`
+(Settings → Codespaces → Secrets) so it's present on every launch.
 
 ---
 
@@ -155,6 +166,17 @@ The frontend is just a client of a small REST API:
   range requests, so the in-page player can seek).
 
 ---
+
+## Running the tests
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest
+```
+
+The suite covers the pure logic (timestamp parsing, caption generation +
+escaping, word grouping/slicing, reframe filters, and highlight
+clamping/deduplication) — no ffmpeg or network needed.
 
 ## Roadmap ideas
 

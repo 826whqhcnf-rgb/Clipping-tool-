@@ -21,6 +21,7 @@ class Job:
     captions: bool
     highlight: bool
     language: Optional[str]
+    caption_style: str = "karaoke"
     # Source: a local uploaded file to use instead of downloading from `url`.
     source_path: Optional[str] = None
     # Manual mode:

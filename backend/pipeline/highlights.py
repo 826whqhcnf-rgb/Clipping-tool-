@@ -1,20 +1,28 @@
 """Pick the most clip-worthy moments from a transcript.
 
-Primary path: ask Claude (via the Anthropic API) to read the timestamped
-transcript and return the strongest self-contained moments, each with a title,
-a virality score, and a one-line reason — the core of a Viblo-style auto-clipper.
+Primary path: ask an LLM (Gemini's free tier, or Claude) to read the
+timestamped transcript and return the strongest self-contained moments, each
+with a title, a virality score, a reason, and ready-to-post hashtags — the core
+of a Viblo-style auto-clipper.
 
-Fallback (no ANTHROPIC_API_KEY): a speech-density heuristic so the tool still
-produces clips offline.
+Fallback (no API key): a speech-density heuristic so the tool still produces
+clips offline.
 """
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+import re
+from dataclasses import dataclass, field
 from typing import List, Optional
 
 from ..config import GEMINI_MODEL, HIGHLIGHT_MODEL
 from .transcribe import Word
+
+_STOPWORDS = {
+    "the", "and", "for", "are", "but", "not", "you", "your", "with", "that",
+    "this", "have", "from", "they", "what", "when", "will", "would", "there",
+    "their", "about", "just", "like", "really", "gonna", "yeah", "okay",
+}
 
 
 @dataclass
@@ -24,6 +32,7 @@ class Highlight:
     title: str
     score: Optional[int]   # 0-100 virality estimate; None if unknown
     reason: str
+    hashtags: List[str] = field(default_factory=list)
 
 
 def _timestamped_transcript(words: List[Word], group: int = 12) -> str:
@@ -40,17 +49,21 @@ def _timestamped_transcript(words: List[Word], group: int = 12) -> str:
 SYSTEM_PROMPT = (
     "You are an expert short-form video editor who finds viral moments in long "
     "videos for YouTube Shorts, TikTok, and Reels. You are given a timestamped "
-    "transcript. Each line starts with the start time in seconds in square "
+    "transcript where each line starts with its start time in seconds in square "
     "brackets. Identify the strongest standalone moments to clip.\n\n"
     "Rules for every clip you choose:\n"
-    "- It must be self-contained: a complete thought, story, joke, insight, or hook.\n"
-    "- Prefer moments with a strong hook in the first few seconds.\n"
+    "- It must be self-contained: a complete thought, story, joke, insight, or "
+    "surprising claim that makes sense on its own.\n"
+    "- The first 1-2 seconds must be a strong hook that stops the scroll.\n"
     "- start and end are in seconds and must fall within the transcript's range.\n"
     "- Each clip must be between the given minimum and maximum length.\n"
-    "- Clips must not overlap each other.\n"
+    "- Clips must NOT overlap, and should be spread across different parts of "
+    "the video rather than clustered together.\n"
     "- score is a 0-100 estimate of viral potential (higher = more shareable).\n"
-    "- title is a punchy, scroll-stopping caption (<= 60 characters).\n"
+    "- title is a punchy, curiosity-driving caption (<= 60 characters), no "
+    "surrounding quotes.\n"
     "- reason is one short sentence on why it will perform well.\n"
+    "- hashtags is 3-6 relevant lowercase tags WITHOUT the # symbol.\n"
     "Return the clips ordered from highest to lowest score."
 )
 
@@ -64,12 +77,16 @@ def _build_user_prompt(words: List[Word], num_clips: int, min_len: float, max_le
     )
 
 
-def _find_with_gemini(
-    words: List[Word],
-    num_clips: int,
-    min_len: float,
-    max_len: float,
-) -> List[Highlight]:
+def _clean_hashtags(tags) -> List[str]:
+    out: List[str] = []
+    for t in tags or []:
+        t = re.sub(r"[^0-9a-zA-Z]", "", str(t)).lower()
+        if t and t not in out:
+            out.append(t)
+    return out[:6]
+
+
+def _find_with_gemini(words, num_clips, min_len, max_len) -> List[Highlight]:
     from google import genai
     from google.genai import types
     from pydantic import BaseModel
@@ -80,6 +97,7 @@ def _find_with_gemini(
         title: str
         score: int
         reason: str
+        hashtags: list[str]
 
     api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
     client = genai.Client(api_key=api_key)
@@ -95,19 +113,15 @@ def _find_with_gemini(
     choices = response.parsed or []
     return [
         Highlight(
-            start=c.start, end=c.end, title=c.title.strip(),
+            start=c.start, end=c.end, title=c.title.strip().strip('"'),
             score=max(0, min(100, c.score)), reason=c.reason.strip(),
+            hashtags=_clean_hashtags(c.hashtags),
         )
         for c in choices
     ]
 
 
-def _find_with_claude(
-    words: List[Word],
-    num_clips: int,
-    min_len: float,
-    max_len: float,
-) -> List[Highlight]:
+def _find_with_claude(words, num_clips, min_len, max_len) -> List[Highlight]:
     import anthropic
     from pydantic import BaseModel
 
@@ -117,6 +131,7 @@ def _find_with_claude(
         title: str
         score: int
         reason: str
+        hashtags: list[str]
 
     class ClipChoices(BaseModel):
         clips: list[ClipChoice]
@@ -130,46 +145,49 @@ def _find_with_claude(
         messages=[{"role": "user", "content": _build_user_prompt(words, num_clips, min_len, max_len)}],
         output_format=ClipChoices,
     )
-    choices = response.parsed_output.clips
     return [
         Highlight(
-            start=c.start, end=c.end, title=c.title.strip(),
+            start=c.start, end=c.end, title=c.title.strip().strip('"'),
             score=max(0, min(100, c.score)), reason=c.reason.strip(),
+            hashtags=_clean_hashtags(c.hashtags),
         )
-        for c in choices
+        for c in response.parsed_output.clips
     ]
 
 
-def _find_by_density(
-    words: List[Word],
-    num_clips: int,
-    min_len: float,
-    max_len: float,
-    duration: float,
-) -> List[Highlight]:
+def _keyword_hashtags(words: List[Word], start: float, end: float) -> List[str]:
+    """Cheap hashtags for the heuristic path: the most frequent content words."""
+    freq: dict[str, int] = {}
+    for w in words:
+        if w["start"] < start or w["end"] > end:
+            continue
+        tok = re.sub(r"[^a-zA-Z]", "", w["text"]).lower()
+        if len(tok) >= 4 and tok not in _STOPWORDS:
+            freq[tok] = freq.get(tok, 0) + 1
+    top = sorted(freq, key=lambda k: freq[k], reverse=True)[:4]
+    return ["shorts", "viral", *top]
+
+
+def _find_by_density(words, num_clips, min_len, max_len, duration) -> List[Highlight]:
     """Heuristic fallback: rank fixed windows by words-per-second."""
     target = (min_len + max_len) / 2
 
-    # No speech detected — just split the timeline evenly.
-    if not words:
+    if not words:  # no speech — split the timeline evenly
         clips: List[Highlight] = []
         step = max(target, duration / max(1, num_clips))
-        t = 0.0
-        idx = 1
+        t, idx = 0.0, 1
         while t < duration and len(clips) < num_clips:
             end = min(duration, t + min(max_len, step))
-            clips.append(Highlight(t, end, f"Clip {idx}", None, "Even split (no speech detected)"))
-            t = end
-            idx += 1
+            clips.append(Highlight(t, end, f"Clip {idx}", None,
+                                   "Even split (no speech detected)", ["shorts"]))
+            t, idx = end, idx + 1
         return clips
 
-    # Build candidate windows starting at each word, ~target seconds long.
     candidates: List[Highlight] = []
     for i, w in enumerate(words):
         start = w["start"]
         end = start + target
-        count = 0
-        last = start
+        count, last = 0, start
         for w2 in words[i:]:
             if w2["start"] > end:
                 break
@@ -177,23 +195,22 @@ def _find_by_density(
             last = w2["end"]
         length = min(max_len, max(min_len, last - start))
         density = count / max(1.0, length)
-        score = int(min(100, density * 20))
-        candidates.append(Highlight(start, start + length, "Highlight", score,
-                                    "High speech density"))
+        candidates.append(Highlight(start, start + length, "Highlight",
+                                    int(min(100, density * 20)), "High speech density"))
 
     candidates.sort(key=lambda h: h.score or 0, reverse=True)
+    return candidates  # overlap removal + numbering happens in find_highlights
 
-    # Greedily take the top non-overlapping windows.
+
+def _dedupe(highlights: List[Highlight], num_clips: int) -> List[Highlight]:
+    """Greedily keep the highest-scoring non-overlapping clips."""
     chosen: List[Highlight] = []
-    for cand in candidates:
+    for cand in sorted(highlights, key=lambda h: h.score or 0, reverse=True):
         if len(chosen) >= num_clips:
             break
         if all(cand.end <= c.start or cand.start >= c.end for c in chosen):
             chosen.append(cand)
-
     chosen.sort(key=lambda h: h.start)
-    for idx, h in enumerate(chosen, 1):
-        h.title = f"Highlight {idx}"
     return chosen
 
 
@@ -204,7 +221,7 @@ def find_highlights(
     max_len: float,
     duration: float,
 ) -> List[Highlight]:
-    """Find up to `num_clips` highlights, clamped to the video's bounds.
+    """Find up to `num_clips` highlights, clamped, length-bounded, non-overlapping.
 
     Provider preference: Gemini (free tier) -> Claude -> offline heuristic.
     """
@@ -215,13 +232,23 @@ def find_highlights(
     else:
         highlights = _find_by_density(words, num_clips, min_len, max_len, duration)
 
-    # Clamp to valid ranges and drop anything degenerate.
+    # Clamp to bounds and enforce length limits; drop anything degenerate.
     cleaned: List[Highlight] = []
     for h in highlights:
-        start = max(0.0, min(h.start, duration))
-        end = max(0.0, min(h.end, duration))
-        if end - start < 1.0:
+        h.start = max(0.0, min(h.start, duration))
+        h.end = min(duration, h.end)
+        if h.end - h.start > max_len:           # too long: cap from the start
+            h.end = h.start + max_len
+        if h.end - h.start < min(min_len, 2.0):  # too short to be useful
             continue
-        h.start, h.end = start, end
         cleaned.append(h)
-    return cleaned[:num_clips]
+
+    chosen = _dedupe(cleaned, num_clips)
+
+    # Backfill hashtags / titles for the heuristic path.
+    for idx, h in enumerate(chosen, 1):
+        if not h.hashtags:
+            h.hashtags = _keyword_hashtags(words, h.start, h.end)
+        if h.title == "Highlight":
+            h.title = f"Highlight {idx}"
+    return chosen

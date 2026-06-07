@@ -152,7 +152,15 @@ button#submit-btn:disabled { opacity: .55; cursor: not-allowed; }
 .score.mid { background: #3a3320; color: #ffcf66; }
 .score.low { background: #3a2330; color: #ff90b3; }
 .timecode { font-size: .76rem; color: #707889; }
-.download {
+.tags { display: flex; flex-wrap: wrap; gap: 5px; }
+.tag {
+  font-size: .72rem; color: var(--accent-2);
+  background: #11241f; border: 1px solid #1d3a31;
+  padding: 2px 7px; border-radius: 99px;
+}
+.clip-actions { display: flex; gap: 8px; }
+.download, .copy {
+  flex: 1;
   text-align: center;
   padding: 9px;
   border-radius: 8px;
@@ -162,8 +170,9 @@ button#submit-btn:disabled { opacity: .55; cursor: not-allowed; }
   font-weight: 600;
   font-size: .9rem;
   border: 1px solid var(--border);
+  cursor: pointer;
 }
-.download:hover { border-color: var(--accent); }
+.download:hover, .copy:hover { border-color: var(--accent); }
 
 footer { text-align: center; color: #6b7280; font-size: .8rem; margin-top: 30px; }
 .warn { color: #ffcf66; }

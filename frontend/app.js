@@ -70,6 +70,7 @@ $("clip-form").addEventListener("submit", async (e) => {
       fd.append("file", file);
       fd.append("mode", mode);
       fd.append("reframe", $("reframe").value);
+      fd.append("caption_style", $("caption_style").value);
       fd.append("captions", $("captions").checked);
       fd.append("highlight", $("highlight").checked);
       fd.append("language", $("language").value.trim());
@@ -86,6 +87,7 @@ $("clip-form").addEventListener("submit", async (e) => {
         url: $("url").value,
         mode,
         reframe: $("reframe").value,
+        caption_style: $("caption_style").value,
         captions: $("captions").checked,
         highlight: $("highlight").checked,
         language: $("language").value.trim() || null,
@@ -180,6 +182,11 @@ function renderClips(clips) {
     const scoreClass = clip.score == null ? "" : clip.score >= 70 ? "" : clip.score >= 40 ? "mid" : "low";
     const scoreHtml = clip.score == null ? "" : `<span class="score ${scoreClass}">🔥 ${clip.score}</span>`;
     const tc = `${fmt(clip.start)}–${fmt(clip.end)}`;
+    const tags = (clip.hashtags || []).map((t) => "#" + t);
+    const tagsHtml = tags.length
+      ? `<div class="tags">${tags.map((t) => `<span class="tag">${escapeHtml(t)}</span>`).join("")}</div>`
+      : "";
+    const caption = [clip.title || "", tags.join(" ")].filter(Boolean).join("\n\n");
 
     const card = document.createElement("div");
     card.className = "clip";
@@ -188,15 +195,33 @@ function renderClips(clips) {
       <div class="clip-body">
         <div class="clip-title">${escapeHtml(clip.title || "Clip " + clip.index)}</div>
         <div class="clip-reason">${escapeHtml(clip.reason || "")}</div>
+        ${tagsHtml}
         <div class="clip-meta">
           ${scoreHtml}
           <span class="timecode">${tc}</span>
         </div>
-        <a class="download" href="${src}" download>⬇ Download</a>
+        <div class="clip-actions">
+          <a class="download" href="${src}" download>⬇ Download</a>
+          <button type="button" class="copy" data-caption="${escapeAttr(caption)}">📋 Caption</button>
+        </div>
       </div>`;
     grid.appendChild(card);
   }
 }
+
+// Copy a clip's title + hashtags to paste into the post description.
+$("clip-grid").addEventListener("click", async (e) => {
+  const btn = e.target.closest(".copy");
+  if (!btn) return;
+  try {
+    await navigator.clipboard.writeText(btn.dataset.caption);
+    const old = btn.textContent;
+    btn.textContent = "✓ Copied";
+    setTimeout(() => (btn.textContent = old), 1500);
+  } catch {
+    btn.textContent = "Copy failed";
+  }
+});
 
 function fmt(s) {
   s = Math.round(s || 0);
@@ -209,4 +234,8 @@ function escapeHtml(str) {
   const d = document.createElement("div");
   d.textContent = str;
   return d.innerHTML;
+}
+
+function escapeAttr(str) {
+  return String(str).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/\n/g, "&#10;");
 }

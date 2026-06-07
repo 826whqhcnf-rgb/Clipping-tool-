@@ -62,14 +62,24 @@
           </div>
         </div>
 
-        <label class="field">
-          <span>Reframe style</span>
-          <select id="reframe">
-            <option value="blur" selected>Blurred background (no cropping)</option>
-            <option value="crop">Center crop (fills the screen)</option>
-            <option value="pad">Letterbox (black bars)</option>
-          </select>
-        </label>
+        <div class="row">
+          <label class="field">
+            <span>Reframe style</span>
+            <select id="reframe">
+              <option value="blur" selected>Blurred background</option>
+              <option value="crop">Center crop</option>
+              <option value="pad">Letterbox</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Caption style</span>
+            <select id="caption_style">
+              <option value="karaoke" selected>Karaoke pop (yellow)</option>
+              <option value="boxed">Boxed (green)</option>
+              <option value="clean">Clean white</option>
+            </select>
+          </label>
+        </div>
 
         <div class="checks">
           <label class="check">

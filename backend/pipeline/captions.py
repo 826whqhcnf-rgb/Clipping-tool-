@@ -1,33 +1,84 @@
 """Turn timed words into a styled .ass subtitle file for burning into video.
 
-The default style is the punchy, centred, big-bold caption look common to
-Shorts/Reels/TikTok, with an optional karaoke-style highlight on the word
-currently being spoken.
+Produces the punchy, centred, big-bold caption look common to
+Shorts/Reels/TikTok, with karaoke-style word highlighting and an optional
+"pop" animation on the active word. Several visual presets are available.
 """
 from __future__ import annotations
 
-from typing import List
+from typing import Dict, List
 
 from .transcribe import Word
 
 # ASS colours are &HAABBGGRR (alpha, blue, green, red — note the byte order).
-COLOR_WHITE = "&H00FFFFFF"
-COLOR_HIGHLIGHT = "&H0000FFFF"  # bright yellow
+# Lower alpha = more opaque (00 = solid, FF = transparent).
 
-_HEADER = """[Script Info]
-ScriptType: v4.00+
-PlayResX: 1080
-PlayResY: 1920
-WrapStyle: 2
-ScaledBorderAndShadow: yes
+# Visual presets. Each defines the Default style and the active-word treatment.
+PRESETS: Dict[str, dict] = {
+    "karaoke": {  # white text, bright-yellow active word that pops — the classic
+        "font": "Arial", "size": 92, "bold": -1,
+        "primary": "&H00FFFFFF", "outline_col": "&H00000000", "back": "&H64000000",
+        "border_style": 1, "outline": 6, "shadow": 3, "margin_v": 420,
+        "highlight": "&H0000FFFF", "pop": True,
+    },
+    "clean": {  # plain white, no colour change — minimal and readable
+        "font": "Arial", "size": 88, "bold": -1,
+        "primary": "&H00FFFFFF", "outline_col": "&H00000000", "back": "&H64000000",
+        "border_style": 1, "outline": 6, "shadow": 2, "margin_v": 420,
+        "highlight": "&H00FFFFFF", "pop": False,
+    },
+    "boxed": {  # white text on a translucent black box, green active word
+        "font": "Arial", "size": 82, "bold": -1,
+        "primary": "&H00FFFFFF", "outline_col": "&H00000000", "back": "&HB0000000",
+        "border_style": 3, "outline": 0, "shadow": 0, "margin_v": 440,
+        "highlight": "&H0066FF66", "pop": True,
+    },
+}
+DEFAULT_PRESET = "karaoke"
 
-[V4+ Styles]
-Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Arial,96,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,7,4,2,90,90,430,1
 
-[Events]
-Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-"""
+def _style_line(p: dict) -> str:
+    """Build the V4+ Style line for a preset."""
+    return (
+        "Style: Default,{font},{size},{primary},&H000000FF,{outline_col},{back},"
+        "{bold},0,0,0,100,100,0,0,{border_style},{outline},{shadow},2,90,90,{margin_v},1"
+    ).format(**p)
+
+
+def _header(p: dict) -> str:
+    return (
+        "[Script Info]\n"
+        "ScriptType: v4.00+\n"
+        "PlayResX: 1080\n"
+        "PlayResY: 1920\n"
+        "WrapStyle: 2\n"
+        "ScaledBorderAndShadow: yes\n\n"
+        "[V4+ Styles]\n"
+        "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, "
+        "OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, "
+        "ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, "
+        "MarginL, MarginR, MarginV, Encoding\n"
+        f"{_style_line(p)}\n\n"
+        "[Events]\n"
+        "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, "
+        "Effect, Text\n"
+    )
+
+
+def _escape(text: str) -> str:
+    """Make text safe to embed in an ASS dialogue line.
+
+    `{` and `}` start/end override blocks and a backslash begins a tag, so a
+    transcribed word containing any of them would corrupt the line — escape
+    them. Also flatten any stray newlines.
+    """
+    return (
+        text.replace("\\", "⧵")  # rare glyph stand-in; avoids tag parsing
+        .replace("{", "(")
+        .replace("}", ")")
+        .replace("\n", " ")
+        .strip()
+    )
 
 
 def _fmt_ts(t: float) -> str:
@@ -50,6 +101,8 @@ def group_words(
     chunks: List[List[Word]] = []
     current: List[Word] = []
     for w in words:
+        if not w["text"].strip():
+            continue
         if current:
             gap = w["start"] - current[-1]["end"]
             dur = w["end"] - current[0]["start"]
@@ -66,11 +119,18 @@ def _dialogue(start: float, end: float, text: str) -> str:
     return f"Dialogue: 0,{_fmt_ts(start)},{_fmt_ts(end)},Default,,0,0,0,,{text}"
 
 
-def build_ass(words: List[Word], highlight: bool = True) -> str:
+def build_ass(words: List[Word], highlight: bool = True, preset: str = DEFAULT_PRESET) -> str:
     """Build the full .ass document text from timed words."""
-    lines = [_HEADER]
+    p = PRESETS.get(preset, PRESETS[DEFAULT_PRESET])
+    lines = [_header(p)]
+
+    # Tag applied to the active word: switch colour, and optionally animate a pop.
+    pop = "\\t(0,150,\\fscx116\\fscy116)" if p["pop"] else ""
+    active_open = f"{{\\c{p['highlight']}{pop}}}"
+    reset = "{\\r}"
+
     for chunk in group_words(words):
-        texts = [w["text"] for w in chunk]
+        texts = [_escape(w["text"]) for w in chunk]
         chunk_end = chunk[-1]["end"]
 
         if not highlight:
@@ -83,12 +143,10 @@ def build_ass(words: List[Word], highlight: bool = True) -> str:
             seg_end = chunk[i + 1]["start"] if i + 1 < len(chunk) else chunk_end
             if seg_end <= seg_start:
                 seg_end = seg_start + 0.05
-            parts = []
-            for j, t in enumerate(texts):
-                if j == i:
-                    parts.append(f"{{\\c{COLOR_HIGHLIGHT}}}{t}{{\\c{COLOR_WHITE}}}")
-                else:
-                    parts.append(t)
+            parts = [
+                f"{active_open}{t}{reset}" if j == i else t
+                for j, t in enumerate(texts)
+            ]
             lines.append(_dialogue(seg_start, seg_end, " ".join(parts)))
 
     return "\n".join(lines) + "\n"

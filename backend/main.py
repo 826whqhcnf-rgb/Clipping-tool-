@@ -22,12 +22,14 @@ from .config import (
     OUTPUT_DIR,
 )
 from .jobs import start_job, store
+from .pipeline.captions import PRESETS
 from .utils import have_binary, parse_timestamp
 
 app = FastAPI(title="Shorts Clipper")
 
 VALID_REFRAME = {"blur", "crop", "pad"}
 VALID_MODE = {"auto", "manual"}
+VALID_STYLE = set(PRESETS)
 CLIP_ID_RE = re.compile(r"^[a-f0-9]{12}-\d+$")
 
 
@@ -37,6 +39,7 @@ class JobRequest(BaseModel):
     reframe: str = "blur"
     captions: bool = True
     highlight: bool = True
+    caption_style: str = "karaoke"
     language: Optional[str] = None
     # Manual mode:
     start: Optional[str] = None
@@ -62,13 +65,15 @@ def health():
 
 
 def _build_job_fields(
-    *, url, mode, reframe, captions, highlight, language, start, end, num_clips
+    *, url, mode, reframe, captions, highlight, caption_style, language, start, end, num_clips
 ) -> dict:
     """Validate shared inputs and build the kwargs for store.create()."""
     if mode not in VALID_MODE:
         raise HTTPException(400, f"mode must be one of {sorted(VALID_MODE)}.")
     if reframe not in VALID_REFRAME:
         raise HTTPException(400, f"reframe must be one of {sorted(VALID_REFRAME)}.")
+    if caption_style not in VALID_STYLE:
+        raise HTTPException(400, f"caption_style must be one of {sorted(VALID_STYLE)}.")
 
     fields = dict(
         url=url,
@@ -76,6 +81,7 @@ def _build_job_fields(
         reframe=reframe,
         captions=captions,
         highlight=highlight,
+        caption_style=caption_style,
         language=(language or None),
     )
 
@@ -107,8 +113,8 @@ def create_job(req: JobRequest):
         raise HTTPException(400, "A video URL is required.")
     fields = _build_job_fields(
         url=req.url.strip(), mode=req.mode, reframe=req.reframe,
-        captions=req.captions, highlight=req.highlight, language=req.language,
-        start=req.start, end=req.end, num_clips=req.num_clips,
+        captions=req.captions, highlight=req.highlight, caption_style=req.caption_style,
+        language=req.language, start=req.start, end=req.end, num_clips=req.num_clips,
     )
     job = store.create(**fields)
     start_job(job)
@@ -122,6 +128,7 @@ async def create_upload_job(
     reframe: str = Form("blur"),
     captions: bool = Form(True),
     highlight: bool = Form(True),
+    caption_style: str = Form("karaoke"),
     language: str = Form(""),
     start: str = Form(""),
     end: str = Form(""),
@@ -130,7 +137,8 @@ async def create_upload_job(
     """Start a job from a directly uploaded video file (no download)."""
     fields = _build_job_fields(
         url="", mode=mode, reframe=reframe, captions=captions, highlight=highlight,
-        language=language, start=start, end=end, num_clips=num_clips,
+        caption_style=caption_style, language=language, start=start, end=end,
+        num_clips=num_clips,
     )
     job = store.create(**fields)
 
