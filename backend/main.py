@@ -7,7 +7,7 @@ from typing import Optional
 
 from pathlib import Path
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -19,6 +19,7 @@ from .config import (
     DOWNLOAD_DIR,
     FRONTEND_DIR,
     MAX_CLIP_SECONDS,
+    MAX_UPLOAD_MB,
     OUTPUT_DIR,
 )
 from .jobs import start_job, store
@@ -31,6 +32,8 @@ VALID_REFRAME = {"blur", "crop", "pad"}
 VALID_MODE = {"auto", "manual"}
 VALID_STYLE = set(PRESETS)
 CLIP_ID_RE = re.compile(r"^[a-f0-9]{12}-\d+$")
+JOB_ID_RE = re.compile(r"^[a-f0-9]{12}$")
+MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
 
 
 class JobRequest(BaseModel):
@@ -121,39 +124,87 @@ def create_job(req: JobRequest):
     return {"id": job.id}
 
 
-@app.post("/api/uploads")
-async def create_upload_job(
-    file: UploadFile = File(...),
-    mode: str = Form("auto"),
-    reframe: str = Form("blur"),
-    captions: bool = Form(True),
-    highlight: bool = Form(True),
-    caption_style: str = Form("karaoke"),
-    language: str = Form(""),
-    start: str = Form(""),
-    end: str = Form(""),
-    num_clips: int = Form(3),
-):
-    """Start a job from a directly uploaded video file (no download)."""
+class UploadInit(BaseModel):
+    filename: str = "video.mp4"
+    mode: str = "auto"
+    reframe: str = "blur"
+    captions: bool = True
+    highlight: bool = True
+    caption_style: str = "karaoke"
+    language: Optional[str] = None
+    start: Optional[str] = None
+    end: Optional[str] = None
+    num_clips: int = 3
+
+
+class UploadComplete(BaseModel):
+    filename: str = "video.mp4"
+
+
+def _part_path(job_id: str) -> Path:
+    return DOWNLOAD_DIR / f"{job_id}.part"
+
+
+@app.post("/api/uploads/init")
+def upload_init(req: UploadInit):
+    """Begin a chunked upload: create the job (not started) and return its id.
+
+    Files are uploaded in small chunks to stay under proxy/body-size limits
+    (e.g. the GitHub Codespaces port-forwarding cap), then reassembled here.
+    """
     fields = _build_job_fields(
-        url="", mode=mode, reframe=reframe, captions=captions, highlight=highlight,
-        caption_style=caption_style, language=language, start=start, end=end,
-        num_clips=num_clips,
+        url="", mode=req.mode, reframe=req.reframe, captions=req.captions,
+        highlight=req.highlight, caption_style=req.caption_style,
+        language=req.language, start=req.start, end=req.end, num_clips=req.num_clips,
     )
     job = store.create(**fields)
+    job.status = "uploading"
+    job.message = "Uploading…"
+    _part_path(job.id).unlink(missing_ok=True)  # start fresh
+    return {"id": job.id}
 
-    # Save the upload to disk, named after the job id, then point the job at it.
-    suffix = Path(file.filename or "").suffix.lower() or ".mp4"
-    dest = DOWNLOAD_DIR / f"{job.id}{suffix}"
-    try:
-        with dest.open("wb") as out:
-            while chunk := await file.read(1024 * 1024):
-                out.write(chunk)
-    finally:
-        await file.close()
+
+@app.post("/api/uploads/{job_id}/chunk")
+async def upload_chunk(job_id: str, request: Request):
+    """Append one binary chunk to the in-progress upload."""
+    if not JOB_ID_RE.match(job_id):
+        raise HTTPException(400, "Invalid upload id.")
+    job = store.get(job_id)
+    if not job or job.status != "uploading":
+        raise HTTPException(404, "Upload session not found.")
+
+    part = _part_path(job_id)
+    data = await request.body()
+    with part.open("ab") as out:
+        out.write(data)
+
+    if part.stat().st_size > MAX_UPLOAD_BYTES:
+        part.unlink(missing_ok=True)
+        raise HTTPException(413, f"File exceeds the {MAX_UPLOAD_MB} MB limit.")
+    return {"received": part.stat().st_size}
+
+
+@app.post("/api/uploads/{job_id}/complete")
+def upload_complete(job_id: str, req: UploadComplete):
+    """Finalize the upload and start processing."""
+    if not JOB_ID_RE.match(job_id):
+        raise HTTPException(400, "Invalid upload id.")
+    job = store.get(job_id)
+    if not job or job.status != "uploading":
+        raise HTTPException(404, "Upload session not found.")
+
+    part = _part_path(job_id)
+    if not part.exists() or part.stat().st_size == 0:
+        raise HTTPException(400, "No data was uploaded.")
+
+    suffix = Path(req.filename).suffix.lower() or ".mp4"
+    dest = DOWNLOAD_DIR / f"{job_id}{suffix}"
+    part.replace(dest)
 
     job.source_path = str(dest)
-    job.title = Path(file.filename or "upload").stem
+    job.title = Path(req.filename).stem or "upload"
+    job.status = "queued"
+    job.message = "Queued"
     start_job(job)
     return {"id": job.id}
 

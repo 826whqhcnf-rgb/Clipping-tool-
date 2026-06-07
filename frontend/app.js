@@ -64,57 +64,81 @@ $("clip-form").addEventListener("submit", async (e) => {
   $("clip-grid").innerHTML = "";
 
   try {
-    let res;
-    if (source === "upload") {
-      // All FormData values must be strings — iOS Safari throws on booleans.
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append("mode", mode);
-      fd.append("reframe", $("reframe").value);
-      fd.append("caption_style", $("caption_style").value);
-      fd.append("captions", $("captions").checked ? "true" : "false");
-      fd.append("highlight", $("highlight").checked ? "true" : "false");
-      fd.append("language", $("language").value.trim());
-      if (mode === "auto") {
-        fd.append("num_clips", String(parseInt($("num_clips").value, 10) || 3));
-      } else {
-        fd.append("start", $("start").value.trim());
-        fd.append("end", $("end").value.trim());
-      }
-      $("status-message").textContent = "Uploading file…";
-      res = await fetch("/api/uploads", { method: "POST", body: fd });
+    const opts = {
+      mode,
+      reframe: $("reframe").value,
+      caption_style: $("caption_style").value,
+      captions: $("captions").checked,
+      highlight: $("highlight").checked,
+      language: $("language").value.trim() || null,
+    };
+    if (mode === "auto") {
+      opts.num_clips = parseInt($("num_clips").value, 10) || 3;
     } else {
-      const body = {
-        url: $("url").value,
-        mode,
-        reframe: $("reframe").value,
-        caption_style: $("caption_style").value,
-        captions: $("captions").checked,
-        highlight: $("highlight").checked,
-        language: $("language").value.trim() || null,
-      };
-      if (mode === "auto") {
-        body.num_clips = parseInt($("num_clips").value, 10) || 3;
-      } else {
-        body.start = $("start").value.trim() || null;
-        body.end = $("end").value.trim() || null;
-      }
-      res = await fetch("/api/jobs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      opts.start = $("start").value.trim() || null;
+      opts.end = $("end").value.trim() || null;
     }
 
-    let data = {};
-    try { data = await res.json(); } catch { /* non-JSON error body */ }
-    if (!res.ok) throw new Error(detailMessage(data) || `Request failed (${res.status})`);
-    poll(data.id);
+    let jobId;
+    if (source === "upload") {
+      jobId = await uploadInChunks(file, opts);
+    } else {
+      const res = await fetch("/api/jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: $("url").value, ...opts }),
+      });
+      const data = await safeJson(res);
+      if (!res.ok) throw new Error(detailMessage(data) || `Request failed (${res.status})`);
+      jobId = data.id;
+    }
+    poll(jobId);
   } catch (err) {
     showError(err.message);
     setBusy(false);
   }
 });
+
+async function safeJson(res) {
+  try { return await res.json(); } catch { return {}; }
+}
+
+// Upload a file in small chunks (init -> chunk* -> complete). Returns the job id.
+// Chunking keeps each request small enough to pass proxy/body-size limits.
+async function uploadInChunks(file, opts) {
+  const CHUNK = 6 * 1024 * 1024; // 6 MB per request
+
+  const initRes = await fetch("/api/uploads/init", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ filename: file.name, ...opts }),
+  });
+  const init = await safeJson(initRes);
+  if (!initRes.ok) throw new Error(detailMessage(init) || `Upload init failed (${initRes.status})`);
+  const id = init.id;
+
+  for (let pos = 0; pos < file.size; pos += CHUNK) {
+    const blob = file.slice(pos, pos + CHUNK);
+    const res = await fetch(`/api/uploads/${id}/chunk`, { method: "POST", body: blob });
+    if (!res.ok) {
+      const data = await safeJson(res);
+      throw new Error(detailMessage(data) || `Upload failed (${res.status})`);
+    }
+    const done = Math.min(100, Math.round(((pos + CHUNK) / file.size) * 100));
+    $("status-message").textContent = "Uploading file…";
+    $("status-pct").textContent = `${done}%`;
+    $("bar-fill").style.width = `${done}%`;
+  }
+
+  const compRes = await fetch(`/api/uploads/${id}/complete`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ filename: file.name }),
+  });
+  const comp = await safeJson(compRes);
+  if (!compRes.ok) throw new Error(detailMessage(comp) || `Upload finalize failed (${compRes.status})`);
+  return comp.id;
+}
 
 // Turn a FastAPI error body into a readable string (detail can be a validation array).
 function detailMessage(data) {

@@ -46,6 +46,9 @@ OUTPUT_H = int(os.environ.get("CLIP_OUTPUT_H", 1920))
 # Cap a single manual clip so a typo can't kick off an hour-long render. Seconds.
 MAX_CLIP_SECONDS = int(os.environ.get("CLIP_MAX_SECONDS", 180))
 
+# Cap total uploaded file size (MB) to protect the host's disk.
+MAX_UPLOAD_MB = int(os.environ.get("CLIP_MAX_UPLOAD_MB", 2048))
+
 # Bounds for auto-mode clip lengths (seconds) and how many clips to request.
 AUTO_MIN_LEN = float(os.environ.get("CLIP_AUTO_MIN_LEN", 15))
 AUTO_MAX_LEN = float(os.environ.get("CLIP_AUTO_MAX_LEN", 60))
