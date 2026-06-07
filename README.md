@@ -117,7 +117,23 @@ Auto mode picks an AI provider by whichever key is set, in this order:
 | `CLIP_AUTO_MIN_LEN` / `CLIP_AUTO_MAX_LEN` | `15` / `60` | Auto-clip length bounds (seconds) |
 | `CLIP_AUTO_MAX_CLIPS` | `10` | Max clips Auto mode will produce |
 | `CLIP_MAX_SECONDS` | `180` | Max length for a single Manual clip |
+| `CLIP_COOKIES_FILE` | — | Path to a `cookies.txt` for sites that need login / a bot check (see Troubleshooting) |
 | `PORT` | `8000` | Server port (read by `run.sh`) |
+
+---
+
+## Troubleshooting
+
+**YouTube: "Sign in to confirm you're not a bot."**
+YouTube blocks downloads from cloud/datacenter IPs (Codespaces, most VPS
+hosts). The tool already tries the player clients that usually slip past this;
+if you still hit it, either:
+
+- **Run on a home/residential network** (a laptop at home rarely gets blocked), or
+- **Supply cookies.** Export a `cookies.txt` from a browser logged into YouTube
+  (e.g. the "Get cookies.txt LOCALLY" extension on a desktop), upload it to the
+  machine, and set `export CLIP_COOKIES_FILE=/path/to/cookies.txt` before
+  starting the server.
 
 > **Speed note:** transcription runs on CPU by default. For long videos, use a
 > smaller Whisper model (`tiny`/`base`) or a CUDA GPU
