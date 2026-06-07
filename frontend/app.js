@@ -66,16 +66,17 @@ $("clip-form").addEventListener("submit", async (e) => {
   try {
     let res;
     if (source === "upload") {
+      // All FormData values must be strings — iOS Safari throws on booleans.
       const fd = new FormData();
       fd.append("file", file);
       fd.append("mode", mode);
       fd.append("reframe", $("reframe").value);
       fd.append("caption_style", $("caption_style").value);
-      fd.append("captions", $("captions").checked);
-      fd.append("highlight", $("highlight").checked);
+      fd.append("captions", $("captions").checked ? "true" : "false");
+      fd.append("highlight", $("highlight").checked ? "true" : "false");
       fd.append("language", $("language").value.trim());
       if (mode === "auto") {
-        fd.append("num_clips", parseInt($("num_clips").value, 10) || 3);
+        fd.append("num_clips", String(parseInt($("num_clips").value, 10) || 3));
       } else {
         fd.append("start", $("start").value.trim());
         fd.append("end", $("end").value.trim());
@@ -105,14 +106,24 @@ $("clip-form").addEventListener("submit", async (e) => {
       });
     }
 
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || "Request failed");
+    let data = {};
+    try { data = await res.json(); } catch { /* non-JSON error body */ }
+    if (!res.ok) throw new Error(detailMessage(data) || `Request failed (${res.status})`);
     poll(data.id);
   } catch (err) {
     showError(err.message);
     setBusy(false);
   }
 });
+
+// Turn a FastAPI error body into a readable string (detail can be a validation array).
+function detailMessage(data) {
+  const d = data && data.detail;
+  if (!d) return "";
+  if (typeof d === "string") return d;
+  if (Array.isArray(d)) return d.map((e) => e.msg || JSON.stringify(e)).join("; ");
+  return JSON.stringify(d);
+}
 
 // --- Polling -----------------------------------------------------------------
 function poll(jobId) {
