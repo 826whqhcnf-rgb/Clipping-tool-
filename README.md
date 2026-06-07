@@ -100,10 +100,15 @@ run.sh                 One-command launcher
 
 All settings have sensible defaults; override with environment variables.
 
+Auto mode picks an AI provider by whichever key is set, in this order:
+**Gemini → Claude → offline heuristic**.
+
 | Variable | Default | Description |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | — | Enables Claude-powered highlight detection in Auto mode |
-| `CLIP_HIGHLIGHT_MODEL` | `claude-opus-4-8` | Model used to pick highlights |
+| `GEMINI_API_KEY` | — | Enables Google Gemini highlight detection (free tier — get one at [aistudio.google.com](https://aistudio.google.com/apikey)) |
+| `CLIP_GEMINI_MODEL` | `gemini-2.5-flash` | Gemini model used to pick highlights |
+| `ANTHROPIC_API_KEY` | — | Enables Claude highlight detection (used if no Gemini key) |
+| `CLIP_HIGHLIGHT_MODEL` | `claude-opus-4-8` | Claude model used to pick highlights |
 | `CLIP_WHISPER_MODEL` | `base` | Whisper size: `tiny`/`base`/`small`/`medium`/`large-v3` |
 | `CLIP_WHISPER_DEVICE` | `cpu` | `cpu` or `cuda` |
 | `CLIP_WHISPER_COMPUTE` | `int8` | `int8` (CPU) / `float16` (GPU) / `float32` |

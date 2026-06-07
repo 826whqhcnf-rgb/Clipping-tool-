@@ -44,11 +44,17 @@ class JobRequest(BaseModel):
 
 @app.get("/api/health")
 def health():
-    """Report whether required binaries and the Claude API key are present."""
+    """Report binary availability and which AI provider will pick highlights."""
+    if os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"):
+        provider = "gemini"
+    elif os.environ.get("ANTHROPIC_API_KEY"):
+        provider = "claude"
+    else:
+        provider = "heuristic"
     return {
         "ffmpeg": have_binary("ffmpeg"),
         "ffprobe": have_binary("ffprobe"),
-        "claude": bool(os.environ.get("ANTHROPIC_API_KEY")),
+        "provider": provider,
     }
 
 

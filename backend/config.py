@@ -33,9 +33,10 @@ WHISPER_DEVICE = os.environ.get("CLIP_WHISPER_DEVICE", "cpu")
 # Compute type: int8 (fast, CPU) | float16 (GPU) | float32
 WHISPER_COMPUTE = os.environ.get("CLIP_WHISPER_COMPUTE", "int8")
 
-# --- Auto-highlight detection (Claude) ---------------------------------------
-# Used only in "auto" mode, and only when ANTHROPIC_API_KEY is set. Without a
-# key, the tool falls back to a speech-density heuristic.
+# --- Auto-highlight detection -------------------------------------------------
+# Used only in "auto" mode. Provider is chosen by which API key is present:
+#   GEMINI_API_KEY (free tier) -> ANTHROPIC_API_KEY -> offline heuristic.
+GEMINI_MODEL = os.environ.get("CLIP_GEMINI_MODEL", "gemini-2.5-flash")
 HIGHLIGHT_MODEL = os.environ.get("CLIP_HIGHLIGHT_MODEL", "claude-opus-4-8")
 
 # --- Output video dimensions (9:16 vertical) ---------------------------------

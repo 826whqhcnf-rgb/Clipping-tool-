@@ -23,9 +23,12 @@ fetch("/api/health")
       $("ffmpeg-warn").textContent =
         "⚠ ffmpeg/ffprobe not found on the server — install them or clips will fail to render.";
     }
-    $("ai-hint").textContent = h.claude
-      ? "Claude will analyze the transcript to pick the most viral moments."
-      : "No ANTHROPIC_API_KEY set — using a speech-density heuristic. Set the key for smarter clip picks.";
+    const hints = {
+      gemini: "Google Gemini will analyze the transcript to pick the most viral moments.",
+      claude: "Claude will analyze the transcript to pick the most viral moments.",
+      heuristic: "No AI key set — using a speech-density heuristic. Add a GEMINI_API_KEY for smarter clip picks.",
+    };
+    $("ai-hint").textContent = hints[h.provider] || hints.heuristic;
   })
   .catch(() => {});
 

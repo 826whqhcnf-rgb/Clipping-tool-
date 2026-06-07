@@ -13,7 +13,7 @@ import os
 from dataclasses import dataclass
 from typing import List, Optional
 
-from ..config import HIGHLIGHT_MODEL
+from ..config import GEMINI_MODEL, HIGHLIGHT_MODEL
 from .transcribe import Word
 
 
@@ -55,6 +55,53 @@ SYSTEM_PROMPT = (
 )
 
 
+def _build_user_prompt(words: List[Word], num_clips: int, min_len: float, max_len: float) -> str:
+    transcript = _timestamped_transcript(words)
+    return (
+        f"Pick the {num_clips} best clips from this transcript.\n"
+        f"Each clip must be between {min_len:.0f} and {max_len:.0f} seconds long.\n\n"
+        f"TRANSCRIPT:\n{transcript}"
+    )
+
+
+def _find_with_gemini(
+    words: List[Word],
+    num_clips: int,
+    min_len: float,
+    max_len: float,
+) -> List[Highlight]:
+    from google import genai
+    from google.genai import types
+    from pydantic import BaseModel
+
+    class ClipChoice(BaseModel):
+        start: float
+        end: float
+        title: str
+        score: int
+        reason: str
+
+    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    client = genai.Client(api_key=api_key)
+    response = client.models.generate_content(
+        model=GEMINI_MODEL,
+        contents=_build_user_prompt(words, num_clips, min_len, max_len),
+        config=types.GenerateContentConfig(
+            system_instruction=SYSTEM_PROMPT,
+            response_mime_type="application/json",
+            response_schema=list[ClipChoice],
+        ),
+    )
+    choices = response.parsed or []
+    return [
+        Highlight(
+            start=c.start, end=c.end, title=c.title.strip(),
+            score=max(0, min(100, c.score)), reason=c.reason.strip(),
+        )
+        for c in choices
+    ]
+
+
 def _find_with_claude(
     words: List[Word],
     num_clips: int,
@@ -74,20 +121,13 @@ def _find_with_claude(
     class ClipChoices(BaseModel):
         clips: list[ClipChoice]
 
-    transcript = _timestamped_transcript(words)
-    user_prompt = (
-        f"Pick the {num_clips} best clips from this transcript.\n"
-        f"Each clip must be between {min_len:.0f} and {max_len:.0f} seconds long.\n\n"
-        f"TRANSCRIPT:\n{transcript}"
-    )
-
     client = anthropic.Anthropic()
     response = client.messages.parse(
         model=HIGHLIGHT_MODEL,
         max_tokens=16000,
         thinking={"type": "adaptive"},
         system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user_prompt}],
+        messages=[{"role": "user", "content": _build_user_prompt(words, num_clips, min_len, max_len)}],
         output_format=ClipChoices,
     )
     choices = response.parsed_output.clips
@@ -164,8 +204,13 @@ def find_highlights(
     max_len: float,
     duration: float,
 ) -> List[Highlight]:
-    """Find up to `num_clips` highlights, clamped to the video's bounds."""
-    if os.environ.get("ANTHROPIC_API_KEY"):
+    """Find up to `num_clips` highlights, clamped to the video's bounds.
+
+    Provider preference: Gemini (free tier) -> Claude -> offline heuristic.
+    """
+    if (os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")) and words:
+        highlights = _find_with_gemini(words, num_clips, min_len, max_len)
+    elif os.environ.get("ANTHROPIC_API_KEY") and words:
         highlights = _find_with_claude(words, num_clips, min_len, max_len)
     else:
         highlights = _find_by_density(words, num_clips, min_len, max_len, duration)
