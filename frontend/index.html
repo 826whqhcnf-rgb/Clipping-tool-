@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Shorts Clipper</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <main class="app">
+    <header>
+      <h1>🎬 Shorts Clipper</h1>
+      <p class="tagline">Paste a video. Get captioned vertical Shorts, ready to post.</p>
+    </header>
+
+    <section class="card">
+      <div class="modes" id="modes">
+        <button type="button" class="mode active" data-mode="auto">
+          ✨ Auto<small>Find the best moments</small>
+        </button>
+        <button type="button" class="mode" data-mode="manual">
+          ✂️ Manual<small>Pick a time range</small>
+        </button>
+      </div>
+
+      <form id="clip-form">
+        <label class="field">
+          <span>Video URL</span>
+          <input type="url" id="url" placeholder="https://www.youtube.com/watch?v=…" required />
+        </label>
+
+        <!-- Auto-mode controls -->
+        <div class="mode-panel" data-panel="auto">
+          <label class="field">
+            <span>Number of clips</span>
+            <input type="number" id="num_clips" min="1" max="10" value="3" />
+          </label>
+          <p class="hint" id="ai-hint"></p>
+        </div>
+
+        <!-- Manual-mode controls -->
+        <div class="mode-panel hidden" data-panel="manual">
+          <div class="row">
+            <label class="field">
+              <span>Start <small>(mm:ss)</small></span>
+              <input type="text" id="start" placeholder="0:30" />
+            </label>
+            <label class="field">
+              <span>End <small>(mm:ss)</small></span>
+              <input type="text" id="end" placeholder="1:00" />
+            </label>
+          </div>
+        </div>
+
+        <label class="field">
+          <span>Reframe style</span>
+          <select id="reframe">
+            <option value="blur" selected>Blurred background (no cropping)</option>
+            <option value="crop">Center crop (fills the screen)</option>
+            <option value="pad">Letterbox (black bars)</option>
+          </select>
+        </label>
+
+        <div class="checks">
+          <label class="check">
+            <input type="checkbox" id="captions" checked />
+            <span>Auto captions</span>
+          </label>
+          <label class="check">
+            <input type="checkbox" id="highlight" checked />
+            <span>Highlight spoken word</span>
+          </label>
+        </div>
+
+        <label class="field">
+          <span>Spoken language <small>(optional — auto-detect if blank)</small></span>
+          <input type="text" id="language" placeholder="e.g. en, es, fr" maxlength="8" />
+        </label>
+
+        <button type="submit" id="submit-btn">Make Shorts</button>
+      </form>
+    </section>
+
+    <section class="card status-card hidden" id="status-card">
+      <div class="status-head">
+        <span id="status-message">Working…</span>
+        <span id="status-pct">0%</span>
+      </div>
+      <div class="bar"><div class="bar-fill" id="bar-fill"></div></div>
+      <p class="error hidden" id="status-error"></p>
+    </section>
+
+    <section class="hidden" id="results">
+      <h2 id="results-title">Your Shorts</h2>
+      <div class="grid" id="clip-grid"></div>
+    </section>
+
+    <footer>
+      <p class="warn" id="ffmpeg-warn"></p>
+      <p>Only clip content you own or have permission to use. Respect each platform's Terms of Service.</p>
+    </footer>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# App data (downloads, intermediate work, rendered outputs)
+data/
+
+# Whisper model cache (if downloaded into repo)
+models/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
