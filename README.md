@@ -66,6 +66,14 @@ dependencies and **auto-starts the server**, then opens port 8000. To use the
 free Gemini picker, add a Codespaces **secret** named `GEMINI_API_KEY`
 (Settings → Codespaces → Secrets) so it's present on every launch.
 
+After a `git pull`, reload new code with `bash scripts/restart.sh`.
+
+**Getting a big video in (most reliable):** browser uploads go through the
+Codespaces proxy, which caps request size. The tool uploads in chunks to cope,
+but the surest route is the **"On server"** source: in the VS Code Explorer,
+upload your video into `data/input/`, then pick it from the list in the app —
+no HTTP upload at all.
+
 ---
 
 ## How it works

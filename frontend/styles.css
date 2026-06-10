@@ -139,6 +139,9 @@ button#submit-btn:disabled { opacity: .55; cursor: not-allowed; }
 .error { color: var(--danger); margin: 12px 0 0; white-space: pre-wrap; }
 
 /* Results */
+.results-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 0 16px; }
+.results-head h2 { margin: 0; }
+.results-head .download { flex: 0 0 auto; padding: 9px 16px; }
 #results h2 { margin: 8px 0 16px; }
 .grid {
   display: grid;

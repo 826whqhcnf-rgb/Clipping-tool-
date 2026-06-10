@@ -7,8 +7,11 @@ from typing import Optional
 
 from pathlib import Path
 
+import io
+import zipfile
+
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -242,6 +245,25 @@ def job_status(job_id: str):
     if not job:
         raise HTTPException(404, "Job not found.")
     return store.to_dict(job)
+
+
+@app.get("/api/jobs/{job_id}/zip")
+def download_all(job_id: str):
+    """Bundle all of a job's finished clips into a single zip for download."""
+    job = store.get(job_id)
+    if not job or not job.clips:
+        raise HTTPException(404, "No clips to download.")
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_STORED) as zf:  # mp4 is already compressed
+        for clip in job.clips:
+            path = OUTPUT_DIR / clip["output"]
+            if path.exists():
+                zf.write(path, arcname=f"short-{clip['index']:02d}.mp4")
+    buf.seek(0)
+    return StreamingResponse(
+        buf, media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="shorts-{job_id}.zip"'},
+    )
 
 
 @app.get("/api/clips/{clip_id}")

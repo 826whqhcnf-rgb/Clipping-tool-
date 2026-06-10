@@ -188,8 +188,15 @@ function poll(jobId) {
       if (job.status === "done") {
         clearInterval(pollTimer);
         setBusy(false);
-        $("results-title").textContent =
-          (job.clips || []).length > 1 ? `Your ${job.clips.length} Shorts` : "Your Short";
+        const n = (job.clips || []).length;
+        $("results-title").textContent = n > 1 ? `Your ${n} Shorts` : "Your Short";
+        const all = $("download-all");
+        if (n > 1) {
+          all.href = `/api/jobs/${jobId}/zip`;
+          all.classList.remove("hidden");
+        } else {
+          all.classList.add("hidden");
+        }
       } else if (job.status === "error") {
         clearInterval(pollTimer);
         setBusy(false);
