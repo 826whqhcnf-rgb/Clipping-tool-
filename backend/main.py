@@ -18,6 +18,7 @@ from .config import (
     AUTO_MIN_LEN,
     DOWNLOAD_DIR,
     FRONTEND_DIR,
+    INPUT_DIR,
     MAX_CLIP_SECONDS,
     MAX_UPLOAD_MB,
     OUTPUT_DIR,
@@ -34,16 +35,19 @@ VALID_STYLE = set(PRESETS)
 CLIP_ID_RE = re.compile(r"^[a-f0-9]{12}-\d+$")
 JOB_ID_RE = re.compile(r"^[a-f0-9]{12}$")
 MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
+VIDEO_EXTS = {".mp4", ".mov", ".mkv", ".webm", ".m4v", ".avi"}
 
 
 class JobRequest(BaseModel):
-    url: str
+    url: str = ""
     mode: str = "auto"
     reframe: str = "blur"
     captions: bool = True
     highlight: bool = True
     caption_style: str = "karaoke"
     language: Optional[str] = None
+    # Source: provide either a URL or a file already on the server (in INPUT_DIR).
+    server_file: Optional[str] = None
     # Manual mode:
     start: Optional[str] = None
     end: Optional[str] = None
@@ -109,17 +113,40 @@ def _build_job_fields(
     return fields
 
 
+def _resolve_input_file(name: str) -> Path:
+    """Safely resolve a filename to a file inside INPUT_DIR (no path traversal)."""
+    candidate = (INPUT_DIR / Path(name).name).resolve()
+    if candidate.parent != INPUT_DIR.resolve() or not candidate.is_file():
+        raise HTTPException(400, "That file was not found in the input folder.")
+    return candidate
+
+
+@app.get("/api/files")
+def list_input_files():
+    """List video files available in INPUT_DIR (drop files there to clip them)."""
+    files = []
+    for p in sorted(INPUT_DIR.glob("*")):
+        if p.is_file() and p.suffix.lower() in VIDEO_EXTS:
+            files.append({"name": p.name, "size_mb": round(p.stat().st_size / 1048576, 1)})
+    return {"files": files, "dir": str(INPUT_DIR)}
+
+
 @app.post("/api/jobs")
 def create_job(req: JobRequest):
-    """Start a job from a video URL (downloaded via yt-dlp)."""
-    if not req.url.strip():
-        raise HTTPException(400, "A video URL is required.")
+    """Start a job from a video URL or a file already on the server."""
+    server_path = _resolve_input_file(req.server_file) if req.server_file else None
+    if not server_path and not req.url.strip():
+        raise HTTPException(400, "Provide a video URL or pick a file on the server.")
+
     fields = _build_job_fields(
-        url=req.url.strip(), mode=req.mode, reframe=req.reframe,
+        url="" if server_path else req.url.strip(), mode=req.mode, reframe=req.reframe,
         captions=req.captions, highlight=req.highlight, caption_style=req.caption_style,
         language=req.language, start=req.start, end=req.end, num_clips=req.num_clips,
     )
     job = store.create(**fields)
+    if server_path:
+        job.source_path = str(server_path)
+        job.title = server_path.stem
     start_job(job)
     return {"id": job.id}
 

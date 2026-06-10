@@ -56,6 +56,19 @@ h1 { font-size: 2rem; margin: 0; }
 }
 .source.active { border-color: var(--accent); background: #211f3a; }
 input[type="file"] { padding: 9px; }
+.row-inline { display: flex; gap: 8px; align-items: stretch; }
+.row-inline select { flex: 1; }
+.mini {
+  flex: 0 0 auto;
+  padding: 0 14px;
+  background: var(--card-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+.mini:hover { border-color: var(--accent); }
 
 /* Mode switch */
 .modes { display: flex; gap: 10px; margin-bottom: 20px; }

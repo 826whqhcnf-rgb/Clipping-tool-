@@ -4,7 +4,7 @@ let mode = "auto";
 let source = "url";
 let pollTimer = null;
 
-// --- Source switching (URL vs file upload) -----------------------------------
+// --- Source switching (URL / upload / server file) ---------------------------
 document.querySelectorAll(".source").forEach((btn) => {
   btn.addEventListener("click", () => {
     source = btn.dataset.source;
@@ -12,8 +12,27 @@ document.querySelectorAll(".source").forEach((btn) => {
     document.querySelectorAll("[data-srcpanel]").forEach((p) => {
       p.classList.toggle("hidden", p.dataset.srcpanel !== source);
     });
+    if (source === "server") loadServerFiles();
   });
 });
+
+document.getElementById("refresh-files").addEventListener("click", loadServerFiles);
+
+async function loadServerFiles() {
+  try {
+    const data = await safeJson(await fetch("/api/files"));
+    const sel = $("server_file");
+    const files = data.files || [];
+    sel.innerHTML = files.length
+      ? files.map((f) => `<option value="${escapeAttr(f.name)}">${escapeHtml(f.name)} (${f.size_mb} MB)</option>`).join("")
+      : '<option value="">— no files found —</option>';
+    $("server-hint").textContent = files.length
+      ? "Pick a file, then Make Shorts."
+      : `Drop videos into ${data.dir || "the input folder"} (VS Code Explorer → Upload…), then tap ↻.`;
+  } catch {
+    $("server-hint").textContent = "Could not list files.";
+  }
+}
 
 // --- Mode switching ----------------------------------------------------------
 document.querySelectorAll(".mode").forEach((btn) => {
@@ -56,6 +75,9 @@ $("clip-form").addEventListener("submit", async (e) => {
   if (source === "upload" && !file) {
     return showError("Please choose a video file to upload.");
   }
+  if (source === "server" && !$("server_file").value) {
+    return showError("Drop a video into the input folder, then pick it (tap ↻ to refresh).");
+  }
 
   setBusy(true);
   resetStatus();
@@ -83,10 +105,13 @@ $("clip-form").addEventListener("submit", async (e) => {
     if (source === "upload") {
       jobId = await uploadInChunks(file, opts);
     } else {
+      const payload = source === "server"
+        ? { server_file: $("server_file").value, ...opts }
+        : { url: $("url").value, ...opts };
       const res = await fetch("/api/jobs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: $("url").value, ...opts }),
+        body: JSON.stringify(payload),
       });
       const data = await safeJson(res);
       if (!res.ok) throw new Error(detailMessage(data) || `Request failed (${res.status})`);

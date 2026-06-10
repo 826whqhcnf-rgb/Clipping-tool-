@@ -16,8 +16,11 @@ DATA_DIR = Path(os.environ.get("CLIP_DATA_DIR", BASE_DIR / "data"))
 DOWNLOAD_DIR = DATA_DIR / "downloads"
 OUTPUT_DIR = DATA_DIR / "outputs"
 WORK_DIR = DATA_DIR / "work"
+# Drop video files here (e.g. via the VS Code Explorer) to clip them without
+# uploading through the browser — the most reliable path on Codespaces.
+INPUT_DIR = DATA_DIR / "input"
 
-for _d in (DOWNLOAD_DIR, OUTPUT_DIR, WORK_DIR):
+for _d in (DOWNLOAD_DIR, OUTPUT_DIR, WORK_DIR, INPUT_DIR):
     _d.mkdir(parents=True, exist_ok=True)
 
 # Frontend assets.

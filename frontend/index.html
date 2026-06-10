@@ -26,7 +26,8 @@
       <form id="clip-form">
         <div class="sources" id="sources">
           <button type="button" class="source active" data-source="url">🔗 Paste URL</button>
-          <button type="button" class="source" data-source="upload">📁 Upload file</button>
+          <button type="button" class="source" data-source="upload">📁 Upload</button>
+          <button type="button" class="source" data-source="server">📂 On server</button>
         </div>
 
         <label class="field" data-srcpanel="url">
@@ -38,6 +39,15 @@
           <span>Video file <small>(from your device)</small></span>
           <input type="file" id="file" accept="video/*" />
         </label>
+
+        <div class="field hidden" data-srcpanel="server">
+          <span>File on the server <small>(drop videos into the input folder)</small></span>
+          <div class="row-inline">
+            <select id="server_file"><option value="">— no files found —</option></select>
+            <button type="button" id="refresh-files" class="mini">↻</button>
+          </div>
+          <p class="hint" id="server-hint"></p>
+        </div>
 
         <!-- Auto-mode controls -->
         <div class="mode-panel" data-panel="auto">

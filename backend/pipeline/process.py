@@ -5,7 +5,7 @@ import shutil
 from pathlib import Path
 from typing import Callable, List
 
-from ..config import WORK_DIR
+from ..config import DOWNLOAD_DIR, WORK_DIR
 from ..utils import ffprobe_duration, run
 from .download import download_video
 from .highlights import Highlight, find_highlights
@@ -96,10 +96,11 @@ def process_job(job, update: Callable[..., None]) -> None:
 
         update(stage="done", progress=100, message="Done!", clips=clips)
     finally:
-        # Free disk: drop the work dir and the source download/upload.
+        # Free disk: drop the work dir and the downloaded/uploaded source.
+        # Never delete user-provided input files (those live in INPUT_DIR).
         shutil.rmtree(work_root, ignore_errors=True)
         try:
-            if source.exists():
+            if source.is_relative_to(DOWNLOAD_DIR) and source.exists():
                 source.unlink()
         except OSError:
             pass
