@@ -32,7 +32,7 @@ from .utils import have_binary, parse_timestamp
 
 app = FastAPI(title="Shorts Clipper")
 
-VALID_REFRAME = {"blur", "crop", "pad"}
+VALID_REFRAME = {"blur", "crop", "pad", "face"}
 VALID_MODE = {"auto", "manual"}
 VALID_STYLE = set(PRESETS)
 CLIP_ID_RE = re.compile(r"^[a-f0-9]{12}-\d+$")

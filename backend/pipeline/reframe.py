@@ -42,3 +42,18 @@ def reframe_filter(mode: str, w: int = OUTPUT_W, h: int = OUTPUT_H) -> Tuple[str
         )
 
     raise ValueError(f"Unknown reframe mode: {mode!r}")
+
+
+def smart_crop_vf(center_frac: float, src_w: int, src_h: int,
+                  w: int = OUTPUT_W, h: int = OUTPUT_H) -> str:
+    """Build a -vf that scales to fill height then crops the width around `center_frac`.
+
+    `center_frac` (0..1) is where to keep the subject horizontally. The crop is
+    clamped so it never runs past the frame edges.
+    """
+    scaled_w = max(w, round(src_w * h / src_h))
+    if scaled_w % 2:
+        scaled_w += 1
+    x = round(center_frac * scaled_w - w / 2)
+    x = max(0, min(x, scaled_w - w))
+    return f"scale={scaled_w}:{h},crop={w}:{h}:{x}:0"

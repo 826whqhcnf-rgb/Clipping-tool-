@@ -12,9 +12,10 @@ Paste a video URL and the tool will:
    with a **title**, a **virality score**, a reason, and ready-to-post
    **hashtags** (this is "Auto" mode). Or pick an exact time range in "Manual"
    mode (which only transcribes the segment you chose, so it's fast).
-4. **Reframe to vertical 9:16** (1080×1920) — blurred background, center crop,
-   or letterbox — and **normalize loudness** so every clip plays at a
-   consistent volume.
+4. **Reframe to vertical 9:16** (1080×1920) — blurred background, **smart crop
+   that keeps the speaker centered** (OpenCV face detection, offline), plain
+   center crop, or letterbox — and **normalize loudness** so every clip plays
+   at a consistent volume.
 5. **Burn animated captions** — karaoke word-pop highlighting in selectable
    styles (karaoke / boxed / clean), the popular Shorts/Reels/TikTok look.
 6. **Preview, copy a caption (title + hashtags), and download** each finished

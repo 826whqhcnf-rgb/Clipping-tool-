@@ -55,3 +55,15 @@ def ffprobe_duration(path: Path) -> float:
         "-of", "json", str(path),
     ])
     return float(json.loads(proc.stdout)["format"]["duration"])
+
+
+def ffprobe_dimensions(path: Path) -> tuple[int, int]:
+    """Return (width, height) of a video's first video stream."""
+    proc = run([
+        "ffprobe", "-v", "error",
+        "-select_streams", "v:0",
+        "-show_entries", "stream=width,height",
+        "-of", "json", str(path),
+    ])
+    stream = json.loads(proc.stdout)["streams"][0]
+    return int(stream["width"]), int(stream["height"])

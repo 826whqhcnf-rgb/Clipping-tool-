@@ -9,7 +9,7 @@ for _k in ("GEMINI_API_KEY", "GOOGLE_API_KEY", "ANTHROPIC_API_KEY"):
 
 from backend.utils import parse_timestamp
 from backend.pipeline.captions import build_ass, group_words, _escape
-from backend.pipeline.reframe import reframe_filter
+from backend.pipeline.reframe import reframe_filter, smart_crop_vf
 from backend.pipeline.render import slice_words
 from backend.pipeline.highlights import find_highlights, _dedupe, Highlight
 
@@ -42,6 +42,22 @@ def test_reframe_kinds():
 def test_reframe_invalid():
     with pytest.raises(ValueError):
         reframe_filter("nope")
+
+
+def test_smart_crop_centers_and_clamps():
+    # 1280x720 -> 1080x1920: scaled width ~3414, crop window 1080 wide.
+    left = smart_crop_vf(0.0, 1280, 720)
+    center = smart_crop_vf(0.5, 1280, 720)
+    right = smart_crop_vf(1.0, 1280, 720)
+    assert left.endswith(":0:0")               # clamped to the left edge
+    assert "crop=1080:1920:" in center         # correct output size
+    # right edge clamp: x == scaled_w - 1080, never beyond
+    x_right = int(right.split(":")[-2])
+    scaled_w = int(center.split("scale=")[1].split(":")[0])
+    assert x_right == scaled_w - 1080
+    # off-centre subject shifts the crop right of centre
+    x_center = int(center.split(":")[-2])
+    assert int(smart_crop_vf(0.8, 1280, 720).split(":")[-2]) > x_center
 
 
 # --- captions ----------------------------------------------------------------

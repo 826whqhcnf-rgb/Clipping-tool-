@@ -6,9 +6,10 @@ from pathlib import Path
 from typing import List, Optional
 
 from ..config import OUTPUT_DIR, WORK_DIR
-from ..utils import run
+from ..utils import ffprobe_dimensions, run
 from .captions import build_ass
-from .reframe import reframe_filter
+from .facecrop import detect_face_center
+from .reframe import reframe_filter, smart_crop_vf
 from .transcribe import Word
 
 
@@ -34,7 +35,14 @@ def build_clip_cmd(
     reframe_mode: str,
 ) -> List[str]:
     """ffmpeg command to trim the source and reframe it to vertical 9:16."""
-    kind, fstr = reframe_filter(reframe_mode)
+    if reframe_mode == "face":
+        # Keep the speaker in frame: detect their position, then crop around it.
+        src_w, src_h = ffprobe_dimensions(source)
+        center = detect_face_center(source, start or 0.0,
+                                    end if end is not None else (start or 0.0) + 30.0)
+        kind, fstr = "vf", smart_crop_vf(0.5 if center is None else center, src_w, src_h)
+    else:
+        kind, fstr = reframe_filter(reframe_mode)
 
     cmd: List[str] = ["ffmpeg", "-y"]
     if start is not None:
