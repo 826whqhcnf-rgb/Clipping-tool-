@@ -276,24 +276,109 @@ function renderClips(clips) {
           <a class="download" href="${src}" download>⬇ Download</a>
           <button type="button" class="copy" data-caption="${escapeAttr(caption)}">📋 Caption</button>
         </div>
+        <button type="button" class="post yt-only hidden" data-id="${clip.id}"
+          data-title="${escapeAttr(clip.title || "")}"
+          data-desc="${escapeAttr(caption)}"
+          data-tags="${escapeAttr((clip.hashtags || []).join(","))}">▶️ Post to YouTube</button>
+        <span class="post-result"></span>
       </div>`;
     grid.appendChild(card);
   }
+  applyYouTubeVisibility();
 }
 
-// Copy a clip's title + hashtags to paste into the post description.
+// Clip actions: copy caption, or post to YouTube.
 $("clip-grid").addEventListener("click", async (e) => {
-  const btn = e.target.closest(".copy");
-  if (!btn) return;
-  try {
-    await navigator.clipboard.writeText(btn.dataset.caption);
-    const old = btn.textContent;
-    btn.textContent = "✓ Copied";
-    setTimeout(() => (btn.textContent = old), 1500);
-  } catch {
-    btn.textContent = "Copy failed";
+  const copyBtn = e.target.closest(".copy");
+  if (copyBtn) {
+    try {
+      await navigator.clipboard.writeText(copyBtn.dataset.caption);
+      const old = copyBtn.textContent;
+      copyBtn.textContent = "✓ Copied";
+      setTimeout(() => (copyBtn.textContent = old), 1500);
+    } catch {
+      copyBtn.textContent = "Copy failed";
+    }
+    return;
+  }
+
+  const postBtn = e.target.closest(".post");
+  if (postBtn) {
+    if (!ytConnected) return showError("Connect a YouTube account first (button above the clips).");
+    const result = postBtn.parentElement.querySelector(".post-result");
+    postBtn.disabled = true;
+    postBtn.textContent = "Uploading to YouTube…";
+    result.textContent = "";
+    try {
+      const res = await fetch("/api/youtube/upload", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clip_id: postBtn.dataset.id,
+          title: postBtn.dataset.title,
+          description: postBtn.dataset.desc,
+          tags: (postBtn.dataset.tags || "").split(",").filter(Boolean),
+          privacy: $("yt-privacy").value,
+        }),
+      });
+      const data = await safeJson(res);
+      if (!res.ok) throw new Error(detailMessage(data) || `Upload failed (${res.status})`);
+      postBtn.textContent = "✓ Posted";
+      result.innerHTML = ` <a href="${data.url}" target="_blank" rel="noopener">${data.url}</a>`;
+    } catch (err) {
+      postBtn.disabled = false;
+      postBtn.textContent = "▶️ Post to YouTube";
+      result.textContent = " " + err.message;
+    }
   }
 });
+
+// --- YouTube posting ---------------------------------------------------------
+let ytConfigured = false;
+let ytConnected = false;
+let ytPollTimer = null;
+
+function applyYouTubeVisibility() {
+  document.querySelectorAll(".yt-only").forEach((el) => el.classList.toggle("hidden", !ytConnected));
+}
+
+async function refreshYouTube() {
+  const s = await safeJson(await fetch("/api/youtube/status"));
+  ytConfigured = !!s.configured;
+  ytConnected = !!s.connected;
+  $("yt-bar").classList.toggle("hidden", !ytConfigured);
+  $("yt-connect").classList.toggle("hidden", ytConnected);
+  $("yt-status").textContent = ytConnected ? "▶️ YouTube connected" : "▶️ Post to YouTube";
+  applyYouTubeVisibility();
+}
+
+$("yt-connect").addEventListener("click", async () => {
+  const btn = $("yt-connect");
+  btn.disabled = true;
+  try {
+    const data = await safeJson(await fetch("/api/youtube/connect", { method: "POST" }));
+    if (!data.user_code) throw new Error(detailMessage(data) || "Couldn't start authorization.");
+    $("yt-status").innerHTML =
+      `Open <a href="${data.verification_url}" target="_blank" rel="noopener">${data.verification_url}</a> and enter code <b>${data.user_code}</b>`;
+    const interval = (data.interval || 5) * 1000;
+    clearInterval(ytPollTimer);
+    ytPollTimer = setInterval(async () => {
+      const p = await safeJson(await fetch("/api/youtube/poll", { method: "POST" }));
+      if (p.status === "connected") {
+        clearInterval(ytPollTimer);
+        await refreshYouTube();
+      } else if (p.status === "expired" || (p.status && !["pending", "no_flow"].includes(p.status))) {
+        clearInterval(ytPollTimer);
+        btn.disabled = false;
+        $("yt-status").textContent = `▶️ Authorization ${p.status}. Try again.`;
+      }
+    }, interval);
+  } catch (err) {
+    btn.disabled = false;
+    $("yt-status").textContent = "▶️ " + err.message;
+  }
+});
+
+refreshYouTube().catch(() => {});
 
 function fmt(s) {
   s = Math.round(s || 0);

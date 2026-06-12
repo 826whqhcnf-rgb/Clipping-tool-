@@ -28,6 +28,7 @@ from .config import (
 )
 from .jobs import start_job, store
 from .pipeline.captions import PRESETS
+from . import youtube as yt
 from .utils import have_binary, parse_timestamp
 
 app = FastAPI(title="Shorts Clipper")
@@ -273,6 +274,60 @@ def download_all(job_id: str):
         buf, media_type="application/zip",
         headers={"Content-Disposition": f'attachment; filename="shorts-{job_id}.zip"'},
     )
+
+
+class YouTubeUpload(BaseModel):
+    clip_id: str
+    title: str = "Short"
+    description: str = ""
+    tags: list[str] = []
+    privacy: str = "unlisted"
+
+
+@app.get("/api/youtube/status")
+def youtube_status():
+    """Report whether posting is set up and whether the user has authorized."""
+    return {"configured": yt.is_configured(), "connected": yt.is_connected()}
+
+
+@app.post("/api/youtube/connect")
+def youtube_connect():
+    """Begin the device-code flow; returns a code + URL for the user to enter."""
+    if not yt.is_configured():
+        raise HTTPException(400, "YouTube posting isn't set up (see the README).")
+    try:
+        return yt.start_device_flow()
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(502, f"Couldn't start Google authorization: {exc}")
+
+
+@app.post("/api/youtube/poll")
+def youtube_poll():
+    """Poll once for authorization completion."""
+    return {"status": yt.poll_device()}
+
+
+@app.post("/api/youtube/disconnect")
+def youtube_disconnect():
+    yt.disconnect()
+    return {"connected": False}
+
+
+@app.post("/api/youtube/upload")
+def youtube_upload(req: YouTubeUpload):
+    """Upload a finished clip to the connected YouTube account."""
+    if not yt.is_connected():
+        raise HTTPException(400, "Connect a YouTube account first.")
+    if not CLIP_ID_RE.match(req.clip_id):
+        raise HTTPException(400, "Invalid clip id.")
+    path = OUTPUT_DIR / f"{req.clip_id}.mp4"
+    if not path.exists():
+        raise HTTPException(404, "Clip not found.")
+    try:
+        video_id = yt.upload(path, req.title, req.description, req.tags, req.privacy)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(502, f"Upload failed: {str(exc)[:300]}")
+    return {"video_id": video_id, "url": f"https://youtu.be/{video_id}"}
 
 
 @app.get("/api/clips/{clip_id}")

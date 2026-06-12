@@ -139,6 +139,25 @@ button#submit-btn:disabled { opacity: .55; cursor: not-allowed; }
 .error { color: var(--danger); margin: 12px 0 0; white-space: pre-wrap; }
 
 /* Results */
+.yt-bar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 10px 14px; margin-bottom: 16px;
+}
+.yt-bar #yt-status { flex: 1; min-width: 180px; font-size: .9rem; }
+.yt-bar select { width: auto; padding: 7px 10px; }
+.mini-btn {
+  padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--accent); color: #fff; font-weight: 600; cursor: pointer;
+}
+.post {
+  margin-top: 8px; width: 100%; padding: 9px; border-radius: 8px;
+  border: 1px solid #c4302b; background: #c4302b; color: #fff;
+  font-weight: 600; font-size: .9rem; cursor: pointer;
+}
+.post:disabled { opacity: .6; cursor: default; }
+.post-result { font-size: .78rem; word-break: break-all; }
+.post-result a { color: var(--accent-2); }
 .results-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 0 16px; }
 .results-head h2 { margin: 0; }
 .results-head .download { flex: 0 0 auto; padding: 9px 16px; }

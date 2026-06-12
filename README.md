@@ -19,7 +19,7 @@ Paste a video URL and the tool will:
 5. **Burn animated captions** — karaoke word-pop highlighting in selectable
    styles (karaoke / boxed / clean), the popular Shorts/Reels/TikTok look.
 6. **Preview, copy a caption (title + hashtags), and download** each finished
-   Short in the browser.
+   Short — or **post it straight to YouTube** (optional, see below).
 
 > ⚖️ Only clip content you own or have permission to use, and respect each
 > platform's Terms of Service and copyright.
@@ -175,6 +175,37 @@ The frontend is just a client of a small REST API:
   range requests, so the in-page player can seek).
 
 ---
+
+## Posting to YouTube (optional)
+
+You can publish a finished Short straight from the app. It uses Google's OAuth
+**device flow**, so it works on Codespaces with no redirect-URL setup.
+
+**One-time setup:**
+
+1. In the [Google Cloud Console](https://console.cloud.google.com/), create a
+   project and **enable the "YouTube Data API v3"**.
+2. Configure the OAuth consent screen (External; add yourself as a test user).
+3. Create an **OAuth client ID** of type **"TVs and Limited Input devices"**.
+4. Set the client id/secret as env vars (or Codespaces secrets):
+   ```bash
+   export YOUTUBE_CLIENT_ID=...apps.googleusercontent.com
+   export YOUTUBE_CLIENT_SECRET=...
+   ```
+   Restart the server (`bash scripts/restart.sh`).
+
+**Use it:** after clips are generated, the results area shows a **Connect
+YouTube** button → open the shown URL on any device, enter the code, done. Then
+each clip gets a **▶️ Post to YouTube** button (pick Unlisted/Public/Private).
+
+**Heads-up / limits:**
+- The YouTube API gives ~**6 uploads/day** by default (each upload costs 1600 of
+  the 10,000 daily quota units). Request more in the Cloud Console if needed.
+- While your OAuth app is in "testing", authorizations expire after 7 days —
+  just reconnect.
+- **You are responsible for what you publish.** Only post content you own or
+  have the rights to; uploading others' videos can get your channel struck.
+  Default visibility is **Unlisted** so you can review before going public.
 
 ## Running the tests
 
