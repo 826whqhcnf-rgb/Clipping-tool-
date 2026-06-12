@@ -32,6 +32,15 @@ from .utils import have_binary, parse_timestamp
 
 app = FastAPI(title="Shorts Clipper")
 
+
+@app.middleware("http")
+async def no_store_frontend(request: Request, call_next):
+    """Stop browsers caching the HTML/JS/CSS, so updates always show up."""
+    response = await call_next(request)
+    if not request.url.path.startswith("/api"):
+        response.headers["Cache-Control"] = "no-store, must-revalidate"
+    return response
+
 VALID_REFRAME = {"blur", "crop", "pad", "face"}
 VALID_MODE = {"auto", "manual"}
 VALID_STYLE = set(PRESETS)
