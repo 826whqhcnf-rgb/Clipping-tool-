@@ -50,13 +50,21 @@ def process_job(job, update: Callable[..., None]) -> None:
                 update(progress=pct, message=f"Transcribing speech… {int(frac * 100)}%")
             return cb
 
+        def _safe_transcribe(audio, lo, hi):
+            """Transcribe, but never let a failure kill the job — skip captions instead."""
+            try:
+                return transcribe(audio, language=job.language, progress=_progress_band(lo, hi))
+            except Exception as exc:  # noqa: BLE001
+                update(warning=f"Captions skipped — {str(exc)[:160]}")
+                return []
+
         if job.mode == "auto":
             # Auto always needs the whole transcript to find highlights.
             update(stage="audio", progress=20, message="Extracting audio…")
             audio = work_root / "audio.wav"
             _extract_audio(source, audio)
             update(stage="transcribe", progress=30, message="Transcribing speech…")
-            words = transcribe(audio, language=job.language, progress=_progress_band(30, 50))
+            words = _safe_transcribe(audio, 30, 50)
 
             update(stage="analyze", progress=50, message="Finding the best moments…")
             highlights = find_highlights(
@@ -79,8 +87,7 @@ def process_job(job, update: Callable[..., None]) -> None:
                 audio = work_root / "audio.wav"
                 _extract_audio(source, audio, start=start, end=end)
                 update(stage="transcribe", progress=45, message="Transcribing speech…")
-                seg_words = transcribe(audio, language=job.language,
-                                       progress=_progress_band(45, 58))  # clip-relative
+                seg_words = _safe_transcribe(audio, 45, 58)  # clip-relative
             clip_words = [seg_words]
 
         # 3. Render every clip --------------------------------------------------

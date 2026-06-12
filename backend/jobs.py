@@ -38,6 +38,7 @@ class Job:
     message: str = "Queued"
     title: Optional[str] = None
     clips: List[dict] = field(default_factory=list)
+    warning: Optional[str] = None  # non-fatal note (e.g. captions skipped)
     error: Optional[str] = None
 
 

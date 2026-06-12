@@ -1,7 +1,7 @@
 {
   "name": "Shorts Clipper",
   "image": "mcr.microsoft.com/devcontainers/python:3.11",
-  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y ffmpeg && pip install --upgrade pip && pip install -U yt-dlp -r requirements.txt && chmod +x scripts/start.sh run.sh",
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y ffmpeg && pip install --upgrade pip && pip install -U yt-dlp -r requirements.txt",
   "postAttachCommand": "bash scripts/start.sh",
   "forwardPorts": [8000],
   "portsAttributes": {

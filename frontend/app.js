@@ -185,6 +185,10 @@ function poll(jobId) {
       updateStatus(job);
       renderClips(job.clips || []);
 
+      if (job.warning) {
+        $("status-note").textContent = `⚠ ${job.warning}`;
+        $("status-note").classList.remove("hidden");
+      }
       if (job.status === "done") {
         clearInterval(pollTimer);
         setBusy(false);
@@ -218,6 +222,7 @@ function setBusy(busy) {
 function resetStatus() {
   $("status-card").classList.remove("hidden");
   $("status-error").classList.add("hidden");
+  $("status-note").classList.add("hidden");
   $("bar-fill").style.width = "0%";
   $("status-message").textContent = "Starting…";
   $("status-pct").textContent = "0%";
