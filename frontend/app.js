@@ -131,7 +131,7 @@ async function safeJson(res) {
 // Upload a file in small chunks (init -> chunk* -> complete). Returns the job id.
 // Chunking keeps each request small enough to pass proxy/body-size limits.
 async function uploadInChunks(file, opts) {
-  const CHUNK = 6 * 1024 * 1024; // 6 MB per request
+  const CHUNK = 2 * 1024 * 1024; // 2 MB per request — well under proxy body limits
 
   const initRes = await fetch("/api/uploads/init", {
     method: "POST",
