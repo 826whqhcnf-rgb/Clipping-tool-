@@ -196,7 +196,12 @@ You can publish a finished Short straight from the app. It uses Google's OAuth
 
 **Use it:** after clips are generated, the results area shows a **Connect
 YouTube** button → open the shown URL on any device, enter the code, done. Then
-each clip gets a **▶️ Post to YouTube** button (pick Unlisted/Public/Private).
+each clip gets a **▶️ Post to YouTube** button, or use **Post all to YouTube**
+to publish the whole batch (pick Unlisted/Public/Private).
+
+**Clipping campaigns:** the form has a **Campaign tags / mention** field — put
+the hashtags / @handle / link a campaign requires (e.g. `#cod #mw4 @brand`) and
+they're stamped onto every clip's caption and YouTube description automatically.
 
 **Heads-up / limits:**
 - The YouTube API gives ~**6 uploads/day** by default (each upload costs 1600 of

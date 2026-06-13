@@ -108,6 +108,11 @@
           <input type="text" id="language" placeholder="e.g. en, es, fr" maxlength="8" />
         </label>
 
+        <label class="field">
+          <span>Campaign tags / mention <small>(optional — added to every clip)</small></span>
+          <input type="text" id="campaign_tags" placeholder="#gaming #cod @brandhandle" />
+        </label>
+
         <button type="submit" id="submit-btn">Make Shorts</button>
       </form>
     </section>
@@ -135,6 +140,7 @@
           <option value="private">Private</option>
         </select>
         <button type="button" id="yt-connect" class="mini-btn">Connect YouTube</button>
+        <button type="button" id="yt-post-all" class="mini-btn yt-only hidden">Post all to YouTube</button>
       </div>
       <div class="grid" id="clip-grid"></div>
     </section>

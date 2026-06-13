@@ -79,6 +79,7 @@ $("clip-form").addEventListener("submit", async (e) => {
     return showError("Drop a video into the input folder, then pick it (tap ↻ to refresh).");
   }
 
+  campaignTags = $("campaign_tags").value.trim();
   setBusy(true);
   resetStatus();
   renderedIds.clear();
@@ -254,11 +255,15 @@ function renderClips(clips) {
     const scoreClass = clip.score == null ? "" : clip.score >= 70 ? "" : clip.score >= 40 ? "mid" : "low";
     const scoreHtml = clip.score == null ? "" : `<span class="score ${scoreClass}">🔥 ${clip.score}</span>`;
     const tc = `${fmt(clip.start)}–${fmt(clip.end)}`;
-    const tags = (clip.hashtags || []).map((t) => "#" + t);
+
+    // Merge the clip's own hashtags with any campaign-required tags/mention.
+    const hashtags = mergeHashtags(clip.hashtags || []);
+    const tags = hashtags.map((t) => "#" + t);
     const tagsHtml = tags.length
       ? `<div class="tags">${tags.map((t) => `<span class="tag">${escapeHtml(t)}</span>`).join("")}</div>`
       : "";
-    const caption = [clip.title || "", clip.reason || "", tags.join(" ")]
+    const mentions = campaignMentions();
+    const caption = [clip.title || "", clip.reason || "", tags.join(" "), mentions]
       .filter(Boolean).join("\n\n");
 
     const card = document.createElement("div");
@@ -280,7 +285,7 @@ function renderClips(clips) {
         <button type="button" class="post yt-only hidden" data-id="${clip.id}"
           data-title="${escapeAttr(clip.title || "")}"
           data-desc="${escapeAttr(caption)}"
-          data-tags="${escapeAttr((clip.hashtags || []).join(","))}">▶️ Post to YouTube</button>
+          data-tags="${escapeAttr(hashtags.join(","))}">▶️ Post to YouTube</button>
         <span class="post-result"></span>
       </div>`;
     grid.appendChild(card);
@@ -306,32 +311,79 @@ $("clip-grid").addEventListener("click", async (e) => {
   const postBtn = e.target.closest(".post");
   if (postBtn) {
     if (!ytConnected) return showError("Connect a YouTube account first (button above the clips).");
-    const result = postBtn.parentElement.querySelector(".post-result");
-    postBtn.disabled = true;
-    postBtn.textContent = "Uploading to YouTube…";
-    result.textContent = "";
-    try {
-      const res = await fetch("/api/youtube/upload", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          clip_id: postBtn.dataset.id,
-          title: postBtn.dataset.title,
-          description: postBtn.dataset.desc,
-          tags: (postBtn.dataset.tags || "").split(",").filter(Boolean),
-          privacy: $("yt-privacy").value,
-        }),
-      });
-      const data = await safeJson(res);
-      if (!res.ok) throw new Error(detailMessage(data) || `Upload failed (${res.status})`);
-      postBtn.textContent = "✓ Posted";
-      result.innerHTML = ` <a href="${data.url}" target="_blank" rel="noopener">${data.url}</a>`;
-    } catch (err) {
-      postBtn.disabled = false;
-      postBtn.textContent = "▶️ Post to YouTube";
-      result.textContent = " " + err.message;
-    }
+    await uploadClip(postBtn);
   }
 });
+
+// Upload one clip to YouTube. Returns true on success. Skips already-posted clips.
+async function uploadClip(postBtn) {
+  if (postBtn.dataset.posted === "1") return true;
+  const result = postBtn.parentElement.querySelector(".post-result");
+  postBtn.disabled = true;
+  postBtn.textContent = "Uploading to YouTube…";
+  result.textContent = "";
+  try {
+    const res = await fetch("/api/youtube/upload", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        clip_id: postBtn.dataset.id,
+        title: postBtn.dataset.title,
+        description: postBtn.dataset.desc,
+        tags: (postBtn.dataset.tags || "").split(",").filter(Boolean),
+        privacy: $("yt-privacy").value,
+      }),
+    });
+    const data = await safeJson(res);
+    if (!res.ok) throw new Error(detailMessage(data) || `Upload failed (${res.status})`);
+    postBtn.dataset.posted = "1";
+    postBtn.textContent = "✓ Posted";
+    result.innerHTML = ` <a href="${data.url}" target="_blank" rel="noopener">${data.url}</a>`;
+    return true;
+  } catch (err) {
+    postBtn.disabled = false;
+    postBtn.textContent = "▶️ Post to YouTube";
+    result.textContent = " " + err.message;
+    return false;
+  }
+}
+
+// Post every clip to YouTube, one after another.
+$("yt-post-all").addEventListener("click", async () => {
+  if (!ytConnected) return showError("Connect a YouTube account first.");
+  const btn = $("yt-post-all");
+  const buttons = [...document.querySelectorAll(".post")];
+  btn.disabled = true;
+  let done = 0;
+  for (const b of buttons) {
+    const ok = await uploadClip(b);
+    if (ok) done += 1;
+    btn.textContent = `Posting… ${done}/${buttons.length}`;
+  }
+  btn.textContent = `Posted ${done}/${buttons.length}`;
+  btn.disabled = false;
+});
+
+// --- Campaign tags (applied to every clip) -----------------------------------
+let campaignTags = "";
+
+function campaignTokens() {
+  return campaignTags.split(/\s+/).map((t) => t.trim()).filter(Boolean);
+}
+
+function mergeHashtags(clipTags) {
+  const extra = campaignTokens()
+    .filter((t) => !t.startsWith("@") && !t.startsWith("http"))
+    .map((t) => t.replace(/^#/, "").replace(/[^0-9a-zA-Z_]/g, "").toLowerCase())
+    .filter(Boolean);
+  const out = [];
+  for (const t of [...clipTags, ...extra]) if (t && !out.includes(t)) out.push(t);
+  return out.slice(0, 15);
+}
+
+// Any @mentions or links the campaign requires, kept verbatim for the description.
+function campaignMentions() {
+  return campaignTokens().filter((t) => t.startsWith("@") || t.startsWith("http")).join(" ");
+}
 
 // --- YouTube posting ---------------------------------------------------------
 let ytConfigured = false;
