@@ -258,7 +258,8 @@ function renderClips(clips) {
     const tagsHtml = tags.length
       ? `<div class="tags">${tags.map((t) => `<span class="tag">${escapeHtml(t)}</span>`).join("")}</div>`
       : "";
-    const caption = [clip.title || "", tags.join(" ")].filter(Boolean).join("\n\n");
+    const caption = [clip.title || "", clip.reason || "", tags.join(" ")]
+      .filter(Boolean).join("\n\n");
 
     const card = document.createElement("div");
     card.className = "clip";

@@ -155,8 +155,33 @@ def _find_with_claude(words, num_clips, min_len, max_len) -> List[Highlight]:
     ]
 
 
+def _clip_text(words: List[Word], start: float, end: float) -> str:
+    return " ".join(w["text"] for w in words if start <= w["start"] < end).strip()
+
+
+def _title_from_transcript(words: List[Word], start: float, end: float, max_len: int = 70) -> Optional[str]:
+    """Craft a readable title from what's actually said in the clip."""
+    text = _clip_text(words, start, end)
+    if not text:
+        return None
+    # Drop leading filler so the title opens on something meaningful.
+    text = re.sub(r"^(so|and|but|um|uh|well|like|okay|right|you know|i mean)[,\s]+",
+                  "", text, flags=re.I).strip()
+    if not text:
+        return None
+    # Prefer ending at the first sentence break; otherwise trim on a word boundary.
+    m = re.search(r"[.!?]", text)
+    if m and m.start() + 1 <= max_len:
+        text = text[: m.start()]
+    elif len(text) > max_len:
+        text = text[:max_len].rsplit(" ", 1)[0].rstrip(",;:-")
+        text += "…"
+    text = text.strip().strip('"').rstrip(".")
+    return text[:1].upper() + text[1:] if text else None
+
+
 def _keyword_hashtags(words: List[Word], start: float, end: float) -> List[str]:
-    """Cheap hashtags for the heuristic path: the most frequent content words."""
+    """Hashtags for the heuristic path: '#shorts' plus the clip's key content words."""
     freq: dict[str, int] = {}
     for w in words:
         if w["start"] < start or w["end"] > end:
@@ -165,7 +190,14 @@ def _keyword_hashtags(words: List[Word], start: float, end: float) -> List[str]:
         if len(tok) >= 4 and tok not in _STOPWORDS:
             freq[tok] = freq.get(tok, 0) + 1
     top = sorted(freq, key=lambda k: freq[k], reverse=True)[:4]
-    return ["shorts", "viral", *top]
+    tags = ["shorts", *top, "viral"]
+    # De-dupe while preserving order, cap at 6.
+    seen, out = set(), []
+    for t in tags:
+        if t not in seen:
+            seen.add(t)
+            out.append(t)
+    return out[:6]
 
 
 def _find_by_density(words, num_clips, min_len, max_len, duration) -> List[Highlight]:
@@ -249,6 +281,7 @@ def find_highlights(
     for idx, h in enumerate(chosen, 1):
         if not h.hashtags:
             h.hashtags = _keyword_hashtags(words, h.start, h.end)
-        if h.title == "Highlight":
-            h.title = f"Highlight {idx}"
+        # Replace generic placeholder titles with a real spoken-phrase title.
+        if h.title.strip().lower().startswith(("highlight", "clip")) or not h.title.strip():
+            h.title = _title_from_transcript(words, h.start, h.end) or f"Highlight {idx}"
     return chosen

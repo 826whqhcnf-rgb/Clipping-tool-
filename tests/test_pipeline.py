@@ -11,7 +11,9 @@ from backend.utils import parse_timestamp
 from backend.pipeline.captions import build_ass, group_words, _escape
 from backend.pipeline.reframe import reframe_filter, smart_crop_vf
 from backend.pipeline.render import slice_words
-from backend.pipeline.highlights import find_highlights, _dedupe, Highlight
+from backend.pipeline.highlights import (
+    find_highlights, _dedupe, _title_from_transcript, _keyword_hashtags, Highlight,
+)
 
 
 def _words(n, step=0.4, dur=0.35):
@@ -117,6 +119,31 @@ def test_find_highlights_clamps_and_bounds():
         assert 0 <= h.start < h.end <= 60.0
         assert (h.end - h.start) <= 15.0 + 0.01
         assert h.hashtags  # heuristic backfills hashtags
+
+
+def test_title_from_transcript_strips_filler_and_caps():
+    ws = [{"start": i, "end": i + 0.5, "text": w}
+          for i, w in enumerate("so this is the wildest story you will ever hear today".split())]
+    title = _title_from_transcript(ws, 0, 100)
+    assert title and title[0].isupper()
+    assert not title.lower().startswith("so ")          # filler removed
+    assert not title.endswith(".")
+
+
+def test_heuristic_titles_are_not_generic():
+    ws = [{"start": i * 0.4, "end": i * 0.4 + 0.35, "text": w}
+          for i, w in enumerate(("people always ask how to grow fast the answer is consistency " * 12).split())]
+    hl = find_highlights(ws, num_clips=2, min_len=8, max_len=20, duration=40.0)
+    for h in hl:
+        assert not h.title.lower().startswith(("highlight", "clip"))
+        assert "shorts" in h.hashtags
+
+
+def test_keyword_hashtags_dedupe_and_cap():
+    ws = [{"start": i, "end": i + 0.5, "text": w}
+          for i, w in enumerate("growth growth mindset mindset success success habits".split())]
+    tags = _keyword_hashtags(ws, 0, 100)
+    assert tags[0] == "shorts" and len(tags) == len(set(tags)) and len(tags) <= 6
 
 
 def test_find_highlights_no_speech_even_split():
