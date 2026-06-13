@@ -176,6 +176,23 @@ The frontend is just a client of a small REST API:
 
 ---
 
+## Generate original Shorts (no source video)
+
+The **✨ Generate** tab makes original narrated Shorts from a topic — ideal for
+faceless niches (e.g. finance education) that you fully own and can monetize.
+
+Pipeline: an LLM writes a punchy, virality-optimized script → free Microsoft
+Edge TTS voices it (no API key, and it gives word timings) → animated captions
+over a clean background → a 9:16 MP4. The results are normal clips, so
+**Download / Post to YouTube / Post all** work on them unchanged.
+
+- Needs an AI key for the scripts (`GEMINI_API_KEY` free, or `ANTHROPIC_API_KEY`).
+  The voice is free.
+- Override the voice with `CLIP_TTS_VOICE` (default `en-US-GuyNeural`) and the
+  background colour with `CLIP_GEN_BG` (default deep navy).
+- The "virality score" is the model's own estimate (it's told to target 90+),
+  not a guarantee of real-world performance.
+
 ## Posting to YouTube (optional)
 
 You can publish a finished Short straight from the app. It uses Google's OAuth

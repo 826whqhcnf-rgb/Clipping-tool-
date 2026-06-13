@@ -28,6 +28,14 @@
           <button type="button" class="source active" data-source="url">🔗 Paste URL</button>
           <button type="button" class="source" data-source="upload">📁 Upload</button>
           <button type="button" class="source" data-source="server">📂 On server</button>
+          <button type="button" class="source" data-source="generate">✨ Generate</button>
+        </div>
+
+        <div class="field hidden" data-srcpanel="generate">
+          <span>Topic <small>(original Shorts written + voiced for you)</small></span>
+          <input type="text" id="gen_topic"
+            placeholder="e.g. compound interest, the 2008 crash, what is an ETF" />
+          <p class="hint" id="gen-hint">Writes a script, voices it, and adds captions — no source video needed.</p>
         </div>
 
         <label class="field" data-srcpanel="url">

@@ -12,6 +12,7 @@ document.querySelectorAll(".source").forEach((btn) => {
     document.querySelectorAll("[data-srcpanel]").forEach((p) => {
       p.classList.toggle("hidden", p.dataset.srcpanel !== source);
     });
+    $("submit-btn").textContent = source === "generate" ? "Generate Shorts" : "Make Shorts";
     if (source === "server") loadServerFiles();
   });
 });
@@ -105,6 +106,19 @@ $("clip-form").addEventListener("submit", async (e) => {
     let jobId;
     if (source === "upload") {
       jobId = await uploadInChunks(file, opts);
+    } else if (source === "generate") {
+      const res = await fetch("/api/generate", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          topic: $("gen_topic").value.trim(),
+          num_clips: parseInt($("num_clips").value, 10) || 3,
+          caption_style: $("caption_style").value,
+          language: $("language").value.trim() || null,
+        }),
+      });
+      const data = await safeJson(res);
+      if (!res.ok) throw new Error(detailMessage(data) || `Request failed (${res.status})`);
+      jobId = data.id;
     } else {
       const payload = source === "server"
         ? { server_file: $("server_file").value, ...opts }

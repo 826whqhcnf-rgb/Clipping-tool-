@@ -185,6 +185,29 @@ def _part_path(job_id: str) -> Path:
     return DOWNLOAD_DIR / f"{job_id}.part"
 
 
+class GenerateRequest(BaseModel):
+    topic: str = "finance concepts and recent financial events"
+    num_clips: int = 3
+    caption_style: str = "karaoke"
+    language: Optional[str] = None
+
+
+@app.post("/api/generate")
+def create_generate_job(req: GenerateRequest):
+    """Generate original narrated Shorts from a topic (no source video)."""
+    if req.caption_style not in VALID_STYLE:
+        raise HTTPException(400, f"caption_style must be one of {sorted(VALID_STYLE)}.")
+    job = store.create(
+        url="", mode="generate", reframe="blur", captions=True, highlight=True,
+        caption_style=req.caption_style, language=(req.language or None),
+        num_clips=max(1, min(AUTO_MAX_CLIPS, req.num_clips)),
+        min_len=AUTO_MIN_LEN, max_len=AUTO_MAX_LEN,
+    )
+    job.topic = req.topic.strip() or "finance concepts and recent financial events"
+    start_job(job)
+    return {"id": job.id}
+
+
 @app.post("/api/uploads/init")
 def upload_init(req: UploadInit):
     """Begin a chunked upload: create the job (not started) and return its id.

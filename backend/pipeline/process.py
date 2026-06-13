@@ -25,6 +25,11 @@ def _extract_audio(source: Path, dest: Path, start=None, end=None) -> None:
 
 def process_job(job, update: Callable[..., None]) -> None:
     """Run the full pipeline for one job, reporting progress via `update`."""
+    if job.mode == "generate":
+        from .generate import generate_clips  # deferred: needs TTS/LLM deps
+        generate_clips(job, update)
+        return
+
     work_root = WORK_DIR / job.id
     work_root.mkdir(parents=True, exist_ok=True)
 
