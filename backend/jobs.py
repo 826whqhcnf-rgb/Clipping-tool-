@@ -24,8 +24,9 @@ class Job:
     caption_style: str = "karaoke"
     # Source: a local uploaded file to use instead of downloading from `url`.
     source_path: Optional[str] = None
-    # Generate mode: the topic to write Shorts about.
+    # Generate mode: the topic to write Shorts about, and the narration voice.
     topic: Optional[str] = None
+    voice: Optional[str] = None
     # Manual mode:
     start: Optional[float] = None
     end: Optional[float] = None

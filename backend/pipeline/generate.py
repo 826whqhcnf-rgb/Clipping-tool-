@@ -16,13 +16,28 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, List
 
-from ..config import GEMINI_MODEL, HIGHLIGHT_MODEL, OUTPUT_DIR, WORK_DIR
+from ..config import GEMINI_MODEL, HIGHLIGHT_MODEL, MUSIC_DIR, OUTPUT_DIR, WORK_DIR
 from ..utils import ffprobe_duration, run
 from .captions import build_ass
-from .tts import synthesize
+from .tts import DEFAULT_VOICE, synthesize
 
-BACKGROUND = os.environ.get("CLIP_GEN_BG", "0x0B1F3A")  # deep navy — finance vibe
+# Visual styling for generated Shorts (all overridable via env).
+BG_TOP = os.environ.get("CLIP_GEN_BG_TOP", "0x0B1F3A")   # deep navy (top)
+BG_BOTTOM = os.environ.get("CLIP_GEN_BG_BOTTOM", "0x0A3A5C")  # lighter navy (bottom)
+BAR_COLOR = os.environ.get("CLIP_GEN_BAR", "0x29D67A")   # accent green progress bar
+MUSIC_VOLUME = os.environ.get("CLIP_MUSIC_VOLUME", "0.10")
+_AUDIO_EXTS = {".mp3", ".m4a", ".aac", ".wav", ".ogg", ".opus"}
 
+
+def _find_music() -> str | None:
+    """An optional background-music file (CLIP_MUSIC, or first track in data/music)."""
+    env = os.environ.get("CLIP_MUSIC")
+    if env and Path(env).is_file():
+        return env
+    for p in sorted(MUSIC_DIR.glob("*")):
+        if p.is_file() and p.suffix.lower() in _AUDIO_EXTS:
+            return str(p)
+    return None
 
 @dataclass
 class Script:
@@ -152,21 +167,46 @@ def generate_scripts(topic: str, n: int, target: int = VIRALITY_TARGET,
 
 
 def _compose(work: Path, words, caption_style: str, title: str = "") -> Path:
-    """Render audio.mp3 + captions (and a title banner) over a solid 9:16 background."""
+    """Compose a polished 9:16 Short: gradient bg + captions + title banner +
+    progress bar, with the voiceover (and optional ducked background music)."""
     duration = ffprobe_duration(work / "audio.mp3")
     (work / "captions.ass").write_text(
         build_ass(words, highlight=True, preset=caption_style,
                   header=title, header_end=duration),
         encoding="utf-8")
-    run([
-        "ffmpeg", "-y",
-        "-f", "lavfi", "-i", f"color=c={BACKGROUND}:s=1080x1920:r=30:d={duration:.2f}",
-        "-i", "audio.mp3",
-        "-vf", "subtitles=captions.ass",
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p",
-        "-c:a", "aac", "-b:a", "160k", "-shortest", "-movflags", "+faststart",
-        "final.mp4",
-    ], cwd=str(work))
+
+    # Pre-render a static vertical gradient as the background plate.
+    run(["ffmpeg", "-y", "-f", "lavfi",
+         "-i", f"gradients=s=1080x1920:c0={BG_TOP}:c1={BG_BOTTOM}:x0=0:y0=0:x1=0:y1=1920",
+         "-frames:v", "1", "bg.png"], cwd=str(work))
+
+    # Video: captions, then a growing accent progress bar pinned to the bottom.
+    video_fc = (
+        f"[0:v]subtitles=captions.ass,"
+        f"drawbox=x=0:y=ih-14:w='iw*t/{duration:.2f}':h=14:"
+        f"color={BAR_COLOR}@0.9:t=fill[v]"
+    )
+
+    music = _find_music()
+    # Bound the looped still image to the voice length so the encode terminates.
+    cmd = ["ffmpeg", "-y", "-loop", "1", "-t", f"{duration:.2f}", "-i", "bg.png",
+           "-i", "audio.mp3"]
+    maps = ["-map", "[v]"]
+    if music:
+        cmd += ["-stream_loop", "-1", "-i", music]
+        # Duck the music under the voice and cut it to the voice length.
+        audio_fc = (f";[2:a]volume={MUSIC_VOLUME}[mus];"
+                    f"[1:a][mus]amix=inputs=2:duration=first:dropout_transition=0[a]")
+        maps += ["-map", "[a]"]
+    else:
+        audio_fc = ""
+        maps += ["-map", "1:a"]
+
+    cmd += ["-filter_complex", video_fc + audio_fc, *maps,
+            "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p",
+            "-c:a", "aac", "-b:a", "160k", "-shortest", "-movflags", "+faststart",
+            "final.mp4"]
+    run(cmd, cwd=str(work))
     return work / "final.mp4"
 
 
@@ -186,7 +226,7 @@ def generate_clips(job, update: Callable[..., None]) -> None:
         work = WORK_DIR / clip_id
         work.mkdir(parents=True, exist_ok=True)
 
-        audio_bytes, words = synthesize(s.script)
+        audio_bytes, words = synthesize(s.script, voice=(job.voice or DEFAULT_VOICE))
         (work / "audio.mp3").write_bytes(audio_bytes)
         final = _compose(work, words, job.caption_style, title=s.title)
 

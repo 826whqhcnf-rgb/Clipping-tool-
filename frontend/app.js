@@ -19,6 +19,19 @@ document.querySelectorAll(".source").forEach((btn) => {
 
 document.getElementById("refresh-files").addEventListener("click", loadServerFiles);
 
+// Populate the Generate voice picker.
+(async () => {
+  try {
+    const data = await safeJson(await fetch("/api/voices"));
+    const sel = $("gen_voice");
+    if (sel && data.voices) {
+      sel.innerHTML = data.voices
+        .map((v) => `<option value="${escapeAttr(v.id)}">🎙 ${escapeHtml(v.label)}</option>`)
+        .join("");
+    }
+  } catch { /* leave empty; backend default voice is used */ }
+})();
+
 async function loadServerFiles() {
   try {
     const data = await safeJson(await fetch("/api/files"));
@@ -113,6 +126,7 @@ $("clip-form").addEventListener("submit", async (e) => {
           topic: $("gen_topic").value.trim(),
           num_clips: parseInt($("num_clips").value, 10) || 3,
           caption_style: $("caption_style").value,
+          voice: $("gen_voice").value || null,
           language: $("language").value.trim() || null,
         }),
       });

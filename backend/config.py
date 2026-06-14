@@ -19,8 +19,10 @@ WORK_DIR = DATA_DIR / "work"
 # Drop video files here (e.g. via the VS Code Explorer) to clip them without
 # uploading through the browser — the most reliable path on Codespaces.
 INPUT_DIR = DATA_DIR / "input"
+# Drop royalty-free background music here to have it mixed under generated Shorts.
+MUSIC_DIR = DATA_DIR / "music"
 
-for _d in (DOWNLOAD_DIR, OUTPUT_DIR, WORK_DIR, INPUT_DIR):
+for _d in (DOWNLOAD_DIR, OUTPUT_DIR, WORK_DIR, INPUT_DIR, MUSIC_DIR):
     _d.mkdir(parents=True, exist_ok=True)
 
 # Frontend assets.

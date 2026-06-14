@@ -189,7 +189,15 @@ class GenerateRequest(BaseModel):
     topic: str = "finance concepts and recent financial events"
     num_clips: int = 3
     caption_style: str = "karaoke"
+    voice: Optional[str] = None
     language: Optional[str] = None
+
+
+@app.get("/api/voices")
+def list_voices():
+    """Narration voices available for Generate mode."""
+    from .pipeline.tts import VOICES
+    return {"voices": [{"id": v, "label": label} for v, label in VOICES]}
 
 
 @app.post("/api/generate")
@@ -204,6 +212,7 @@ def create_generate_job(req: GenerateRequest):
         min_len=AUTO_MIN_LEN, max_len=AUTO_MAX_LEN,
     )
     job.topic = req.topic.strip() or "finance concepts and recent financial events"
+    job.voice = req.voice
     start_job(job)
     return {"id": job.id}
 
