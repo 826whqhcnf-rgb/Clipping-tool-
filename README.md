@@ -195,7 +195,8 @@ captions, and an accent progress bar** (the retention look finance channels use)
   `CLIP_TTS_RATE` (default `en-US-GuyNeural`, `+8%`).
 - **Background music (optional):** drop a royalty-free track into `data/music/`
   (or set `CLIP_MUSIC=/path/to.mp3`) and it's mixed in, ducked under the voice
-  (`CLIP_MUSIC_VOLUME`, default `0.10`).
+  (`CLIP_MUSIC_VOLUME`, default `0.10`). Free tracks: YouTube Studio Audio
+  Library, Pixabay Music, or Free Music Archive — check each track's licence.
 - **Colours:** `CLIP_GEN_BG_TOP` / `CLIP_GEN_BG_BOTTOM` (gradient) and
   `CLIP_GEN_BAR` (progress bar).
 - **Virality target:** scripts are regenerated until they hit `CLIP_VIRALITY_TARGET`
