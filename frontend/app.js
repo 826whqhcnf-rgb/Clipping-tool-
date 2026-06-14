@@ -74,6 +74,15 @@ fetch("/api/health")
       heuristic: "No AI key set — using a speech-density heuristic. Add a GEMINI_API_KEY for smarter clip picks.",
     };
     $("ai-hint").textContent = hints[h.provider] || hints.heuristic;
+    // Generate mode needs an AI key for the scripts — warn if missing.
+    if (h.provider === "heuristic") {
+      $("gen-hint").textContent =
+        "⚠ Generate needs an AI key for scripts — add a free GEMINI_API_KEY (aistudio.google.com/apikey).";
+      $("gen-hint").classList.add("warn");
+    } else {
+      $("gen-hint").textContent =
+        `Writes a script (${h.provider}), voices it free, and adds captions — no source video needed.`;
+    }
   })
   .catch(() => {});
 
