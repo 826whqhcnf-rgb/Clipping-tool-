@@ -45,20 +45,28 @@ def _style_line(p: dict) -> str:
     ).format(**p)
 
 
+# Top-anchored title banner that wraps within side margins (Alignment 8 = top centre).
+_TITLE_STYLE = (
+    "Style: Title,Arial,54,&H00FFFFFF,&H000000FF,&H00000000,&HA0000000,"
+    "-1,0,0,0,100,100,0,0,1,5,1,8,70,70,120,1"
+)
+
+
 def _header(p: dict) -> str:
     return (
         "[Script Info]\n"
         "ScriptType: v4.00+\n"
         "PlayResX: 1080\n"
         "PlayResY: 1920\n"
-        "WrapStyle: 2\n"
+        "WrapStyle: 0\n"  # smart wrapping so long titles don't overflow the frame
         "ScaledBorderAndShadow: yes\n\n"
         "[V4+ Styles]\n"
         "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, "
         "OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, "
         "ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, "
         "MarginL, MarginR, MarginV, Encoding\n"
-        f"{_style_line(p)}\n\n"
+        f"{_style_line(p)}\n"
+        f"{_TITLE_STYLE}\n\n"
         "[Events]\n"
         "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, "
         "Effect, Text\n"
@@ -132,8 +140,7 @@ def build_ass(words: List[Word], highlight: bool = True, preset: str = DEFAULT_P
     if header and header_end > 0:
         banner = _escape(header)
         lines.append(
-            f"Dialogue: 0,{_fmt_ts(0)},{_fmt_ts(header_end)},Default,,0,0,0,,"
-            f"{{\\an8\\pos(540,170)\\fs58\\b1\\bord5\\shad0}}{banner}"
+            f"Dialogue: 0,{_fmt_ts(0)},{_fmt_ts(header_end)},Title,,0,0,0,,{banner}"
         )
 
     # Tag applied to the active word: switch colour, and optionally animate a pop.
