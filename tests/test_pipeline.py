@@ -87,6 +87,14 @@ def test_build_ass_unknown_preset_falls_back():
     assert "Dialogue:" in build_ass(_words(4), preset="does-not-exist")
 
 
+def test_build_ass_title_banner_is_added_and_escaped():
+    ass = build_ass(_words(4), header="Why {x} matters\\now", header_end=5.0)
+    assert "\\an8\\pos(540,170)" in ass     # banner pinned near the top
+    assert "{x}" not in ass and "\\now" not in ass  # special chars escaped
+    # no banner when header_end is 0
+    assert "\\an8\\pos" not in build_ass(_words(4), header="ignored", header_end=0)
+
+
 def test_group_words_respects_limits():
     chunks = group_words(_words(12), max_words=4)
     assert all(len(c) <= 4 for c in chunks)

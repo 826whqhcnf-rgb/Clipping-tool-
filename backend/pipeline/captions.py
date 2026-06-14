@@ -119,10 +119,22 @@ def _dialogue(start: float, end: float, text: str) -> str:
     return f"Dialogue: 0,{_fmt_ts(start)},{_fmt_ts(end)},Default,,0,0,0,,{text}"
 
 
-def build_ass(words: List[Word], highlight: bool = True, preset: str = DEFAULT_PRESET) -> str:
-    """Build the full .ass document text from timed words."""
+def build_ass(words: List[Word], highlight: bool = True, preset: str = DEFAULT_PRESET,
+              header: str = "", header_end: float = 0.0) -> str:
+    """Build the full .ass document text from timed words.
+
+    If `header` is given, a persistent title banner is pinned near the top for
+    the first `header_end` seconds (used by generated Shorts).
+    """
     p = PRESETS.get(preset, PRESETS[DEFAULT_PRESET])
     lines = [_header(p)]
+
+    if header and header_end > 0:
+        banner = _escape(header)
+        lines.append(
+            f"Dialogue: 0,{_fmt_ts(0)},{_fmt_ts(header_end)},Default,,0,0,0,,"
+            f"{{\\an8\\pos(540,170)\\fs58\\b1\\bord5\\shad0}}{banner}"
+        )
 
     # Tag applied to the active word: switch colour, and optionally animate a pop.
     pop = "\\t(0,150,\\fscx116\\fscy116)" if p["pop"] else ""

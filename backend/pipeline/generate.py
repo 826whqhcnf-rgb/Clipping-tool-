@@ -120,7 +120,11 @@ def _scripts_claude(topic: str, n: int) -> List[Script]:
             for s in resp.parsed_output.scripts]
 
 
-def generate_scripts(topic: str, n: int) -> List[Script]:
+# Only ship scripts the model rates at/above this virality estimate (when possible).
+VIRALITY_TARGET = int(os.environ.get("CLIP_VIRALITY_TARGET", 90))
+
+
+def _provider_scripts(topic: str, n: int) -> List[Script]:
     if os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"):
         return _scripts_gemini(topic, n)
     if os.environ.get("ANTHROPIC_API_KEY"):
@@ -131,11 +135,29 @@ def generate_scripts(topic: str, n: int) -> List[Script]:
     )
 
 
-def _compose(work: Path, words, caption_style: str) -> Path:
-    """Render audio.mp3 + captions over a solid 9:16 background."""
+def generate_scripts(topic: str, n: int, target: int = VIRALITY_TARGET,
+                     attempts: int = 2) -> List[Script]:
+    """Generate scripts, preferring ones that hit the virality target.
+
+    Regenerates (up to `attempts`) if not enough scripts clear `target`, then
+    returns the highest-scoring `n`. Never fails just because scores are low.
+    """
+    pool: List[Script] = []
+    for _ in range(max(1, attempts)):
+        pool.extend(_provider_scripts(topic, n))
+        if len([s for s in pool if s.score >= target]) >= n:
+            break
+    pool.sort(key=lambda s: s.score, reverse=True)
+    return pool[:n]
+
+
+def _compose(work: Path, words, caption_style: str, title: str = "") -> Path:
+    """Render audio.mp3 + captions (and a title banner) over a solid 9:16 background."""
     duration = ffprobe_duration(work / "audio.mp3")
     (work / "captions.ass").write_text(
-        build_ass(words, highlight=True, preset=caption_style), encoding="utf-8")
+        build_ass(words, highlight=True, preset=caption_style,
+                  header=title, header_end=duration),
+        encoding="utf-8")
     run([
         "ffmpeg", "-y",
         "-f", "lavfi", "-i", f"color=c={BACKGROUND}:s=1080x1920:r=30:d={duration:.2f}",
@@ -166,7 +188,7 @@ def generate_clips(job, update: Callable[..., None]) -> None:
 
         audio_bytes, words = synthesize(s.script)
         (work / "audio.mp3").write_bytes(audio_bytes)
-        final = _compose(work, words, job.caption_style)
+        final = _compose(work, words, job.caption_style, title=s.title)
 
         out_name = f"{clip_id}.mp4"
         shutil.copy(final, OUTPUT_DIR / out_name)
