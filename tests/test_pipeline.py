@@ -154,6 +154,17 @@ def test_keyword_hashtags_dedupe_and_cap():
     assert tags[0] == "shorts" and len(tags) == len(set(tags)) and len(tags) <= 6
 
 
+def test_broll_query_and_no_key_fallback():
+    import os
+    from pathlib import Path
+    from backend.pipeline.broll import fetch_broll
+    from backend.pipeline.generate import _broll_query, Script
+    os.environ.pop("PEXELS_API_KEY", None)
+    assert fetch_broll("stock market", Path("/tmp/none.mp4")) is None  # no key -> None
+    q = _broll_query(Script("Why the stock market crashes", "", "", 90, ["stocks"]))
+    assert q.endswith("finance") and "market" in q
+
+
 def test_find_highlights_no_speech_even_split():
     hl = find_highlights([], num_clips=3, min_len=15, max_len=60, duration=120.0)
     assert len(hl) == 3

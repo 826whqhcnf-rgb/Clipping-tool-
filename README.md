@@ -197,6 +197,10 @@ captions, and an accent progress bar** (the retention look finance channels use)
   (or set `CLIP_MUSIC=/path/to.mp3`) and it's mixed in, ducked under the voice
   (`CLIP_MUSIC_VOLUME`, default `0.10`). Free tracks: YouTube Studio Audio
   Library, Pixabay Music, or Free Music Archive — check each track's licence.
+- **Stock B-roll (optional, big quality boost):** set a free `PEXELS_API_KEY`
+  ([pexels.com/api](https://www.pexels.com/api/)) and each Short plays relevant
+  stock footage (markets, money, city) dimmed behind the captions. Falls back
+  to the gradient when there's no key or no match.
 - **Colours:** `CLIP_GEN_BG_TOP` / `CLIP_GEN_BG_BOTTOM` (gradient) and
   `CLIP_GEN_BAR` (progress bar).
 - **Virality target:** scripts are regenerated until they hit `CLIP_VIRALITY_TARGET`

@@ -18,8 +18,20 @@ from typing import Callable, List
 
 from ..config import GEMINI_MODEL, HIGHLIGHT_MODEL, MUSIC_DIR, OUTPUT_DIR, WORK_DIR
 from ..utils import ffprobe_duration, run
+from .broll import fetch_broll
 from .captions import build_ass
 from .tts import DEFAULT_VOICE, synthesize
+
+_STOP = {"the", "and", "for", "what", "why", "how", "your", "you", "this", "that",
+         "with", "from", "explained", "seconds", "beginners", "money"}
+
+
+def _broll_query(script) -> str:
+    """A short visual search query for stock footage from the script title."""
+    words = re.findall(r"[a-zA-Z]{4,}", script.title.lower())
+    keys = [w for w in words if w not in _STOP][:2]
+    base = " ".join(keys) if keys else (script.hashtags[0] if script.hashtags else "")
+    return (base + " finance").strip()
 
 # Visual styling for generated Shorts (all overridable via env).
 BG_TOP = os.environ.get("CLIP_GEN_BG_TOP", "0x0B1F3A")   # deep navy (top)
@@ -167,35 +179,43 @@ def generate_scripts(topic: str, n: int, target: int = VIRALITY_TARGET,
     return pool[:n]
 
 
-def _compose(work: Path, words, caption_style: str, title: str = "") -> Path:
-    """Compose a polished 9:16 Short: gradient bg + captions + title banner +
-    progress bar, with the voiceover (and optional ducked background music)."""
+def _compose(work: Path, words, caption_style: str, title: str = "",
+             broll: Path | None = None) -> Path:
+    """Compose a polished 9:16 Short: B-roll (or gradient) background + captions
+    + title banner + progress bar, with the voiceover and optional music."""
     duration = ffprobe_duration(work / "audio.mp3")
     (work / "captions.ass").write_text(
         build_ass(words, highlight=True, preset=caption_style,
                   header=title, header_end=duration),
         encoding="utf-8")
 
-    # Pre-render a static vertical gradient as the background plate.
-    run(["ffmpeg", "-y", "-f", "lavfi",
-         "-i", f"gradients=s=1080x1920:c0={BG_TOP}:c1={BG_BOTTOM}:x0=0:y0=0:x1=0:y1=1920",
-         "-frames:v", "1", "bg.png"], cwd=str(work))
+    bar = (f"drawbox=x=0:y=ih-14:w='iw*t/{duration:.2f}':h=14:"
+           f"color={BAR_COLOR}@0.9:t=fill")
 
-    # Video: captions, then a growing accent progress bar pinned to the bottom.
-    video_fc = (
-        f"[0:v]subtitles=captions.ass,"
-        f"drawbox=x=0:y=ih-14:w='iw*t/{duration:.2f}':h=14:"
-        f"color={BAR_COLOR}@0.9:t=fill[v]"
-    )
+    cmd = ["ffmpeg", "-y"]
+    if broll and broll.exists():
+        # Stock footage: cover the frame, dim it for legibility, then captions/bar.
+        cmd += ["-stream_loop", "-1", "-t", f"{duration:.2f}", "-i", broll.name]
+        video_fc = (
+            "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,"
+            "crop=1080:1920,setsar=1,"
+            "drawbox=x=0:y=0:w=iw:h=ih:color=black@0.45:t=fill,"
+            f"subtitles=captions.ass,{bar}[v]"
+        )
+    else:
+        # Pre-render a static vertical gradient as the background plate.
+        run(["ffmpeg", "-y", "-f", "lavfi",
+             "-i", f"gradients=s=1080x1920:c0={BG_TOP}:c1={BG_BOTTOM}:x0=0:y0=0:x1=0:y1=1920",
+             "-frames:v", "1", "bg.png"], cwd=str(work))
+        cmd += ["-loop", "1", "-t", f"{duration:.2f}", "-i", "bg.png"]
+        video_fc = f"[0:v]subtitles=captions.ass,{bar}[v]"
+
+    cmd += ["-i", "audio.mp3"]
+    maps = ["-map", "[v]"]
 
     music = _find_music()
-    # Bound the looped still image to the voice length so the encode terminates.
-    cmd = ["ffmpeg", "-y", "-loop", "1", "-t", f"{duration:.2f}", "-i", "bg.png",
-           "-i", "audio.mp3"]
-    maps = ["-map", "[v]"]
     if music:
         cmd += ["-stream_loop", "-1", "-i", music]
-        # Duck the music under the voice and cut it to the voice length.
         audio_fc = (f";[2:a]volume={MUSIC_VOLUME}[mus];"
                     f"[1:a][mus]amix=inputs=2:duration=first:dropout_transition=0[a]")
         maps += ["-map", "[a]"]
@@ -229,7 +249,10 @@ def generate_clips(job, update: Callable[..., None]) -> None:
 
         audio_bytes, words = synthesize(s.script, voice=(job.voice or DEFAULT_VOICE))
         (work / "audio.mp3").write_bytes(audio_bytes)
-        final = _compose(work, words, job.caption_style, title=s.title)
+
+        # Optional: relevant stock B-roll behind the captions (free Pexels key).
+        broll = fetch_broll(_broll_query(s), work / "broll.mp4")
+        final = _compose(work, words, job.caption_style, title=s.title, broll=broll)
 
         out_name = f"{clip_id}.mp4"
         shutil.copy(final, OUTPUT_DIR / out_name)
