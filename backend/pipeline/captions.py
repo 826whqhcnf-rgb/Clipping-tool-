@@ -50,6 +50,11 @@ _TITLE_STYLE = (
     "Style: Title,Arial,54,&H00FFFFFF,&H000000FF,&H00000000,&HA0000000,"
     "-1,0,0,0,100,100,0,0,1,5,1,8,70,70,120,1"
 )
+# Small semi-transparent credit/watermark pinned bottom-right (Alignment 3).
+_WM_STYLE = (
+    "Style: WM,Arial,34,&H60FFFFFF,&H000000FF,&H60000000,&H00000000,"
+    "0,0,0,0,100,100,0,0,1,2,0,3,40,40,44,1"
+)
 
 
 def _header(p: dict) -> str:
@@ -66,7 +71,8 @@ def _header(p: dict) -> str:
         "ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, "
         "MarginL, MarginR, MarginV, Encoding\n"
         f"{_style_line(p)}\n"
-        f"{_TITLE_STYLE}\n\n"
+        f"{_TITLE_STYLE}\n"
+        f"{_WM_STYLE}\n\n"
         "[Events]\n"
         "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, "
         "Effect, Text\n"
@@ -128,11 +134,14 @@ def _dialogue(start: float, end: float, text: str) -> str:
 
 
 def build_ass(words: List[Word], highlight: bool = True, preset: str = DEFAULT_PRESET,
-              header: str = "", header_end: float = 0.0) -> str:
+              header: str = "", header_end: float = 0.0,
+              watermark: str = "", duration: float = 0.0) -> str:
     """Build the full .ass document text from timed words.
 
     If `header` is given, a persistent title banner is pinned near the top for
-    the first `header_end` seconds (used by generated Shorts).
+    the first `header_end` seconds (used by generated Shorts). If `watermark`
+    is given (e.g. a campaign's required @handle), it's pinned bottom-right for
+    the whole `duration`.
     """
     p = PRESETS.get(preset, PRESETS[DEFAULT_PRESET])
     lines = [_header(p)]
@@ -141,6 +150,11 @@ def build_ass(words: List[Word], highlight: bool = True, preset: str = DEFAULT_P
         banner = _escape(header)
         lines.append(
             f"Dialogue: 0,{_fmt_ts(0)},{_fmt_ts(header_end)},Title,,0,0,0,,{banner}"
+        )
+
+    if watermark and duration > 0:
+        lines.append(
+            f"Dialogue: 0,{_fmt_ts(0)},{_fmt_ts(duration)},WM,,0,0,0,,{_escape(watermark)}"
         )
 
     # Tag applied to the active word: switch colour, and optionally animate a pop.

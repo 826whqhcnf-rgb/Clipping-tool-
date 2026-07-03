@@ -1,14 +1,16 @@
 """Orchestrates the pipeline for a job: source -> (transcribe) -> clip(s)."""
 from __future__ import annotations
 
+import os
 import shutil
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Callable, List
 
 from ..config import DOWNLOAD_DIR, WORK_DIR
 from ..utils import ffprobe_duration, run
 from .download import download_video
-from .highlights import Highlight, find_highlights
+from .highlights import Highlight, find_highlights, snap_to_speech
 from .render import render_clip, slice_words
 
 
@@ -78,6 +80,9 @@ def process_job(job, update: Callable[..., None]) -> None:
             )
             if not highlights:
                 raise RuntimeError("No clip-worthy moments were found in this video.")
+            # Snap windows to word boundaries so clips never start mid-word.
+            for h in highlights:
+                h.start, h.end = snap_to_speech(words, h.start, h.end, duration)
             # Words are absolute; slice per clip at render time.
             clip_words = [slice_words(words, h.start, h.end) if job.captions else []
                           for h in highlights]
@@ -95,25 +100,38 @@ def process_job(job, update: Callable[..., None]) -> None:
                 seg_words = _safe_transcribe(audio, 45, 58)  # clip-relative
             clip_words = [seg_words]
 
-        # 3. Render every clip --------------------------------------------------
-        clips: List[dict] = []
+        # 3. Render clips (in parallel — big wall-clock win on multi-clip jobs) --
         total = len(highlights)
-        for i, (h, cw) in enumerate(zip(highlights, clip_words)):
-            update(stage="render", progress=60 + int(35 * i / max(1, total)),
-                   message=f"Rendering clip {i + 1} of {total}…")
+        update(stage="render", progress=60, message=f"Rendering {total} clip(s)…")
+
+        def _render_one(i: int, h, cw) -> dict:
             clip_id = f"{job.id}-{i + 1}"
             out_name = render_clip(
                 source, clip_id, h.start, h.end, cw,
                 job.reframe, job.captions, job.highlight, job.caption_style,
+                watermark=(job.watermark or ""),
             )
-            clips.append({
+            return {
                 "id": clip_id, "index": i + 1, "title": h.title,
                 "score": h.score, "reason": h.reason, "hashtags": h.hashtags,
                 "start": round(h.start, 2), "end": round(h.end, 2),
                 "output": out_name,
-            })
-            update(clips=list(clips))  # surface clips to the UI as they finish
+            }
 
+        workers = int(os.environ.get("CLIP_RENDER_WORKERS",
+                                     min(2, os.cpu_count() or 1)))
+        results: dict[int, dict] = {}
+        with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
+            futures = [pool.submit(_render_one, i, h, cw)
+                       for i, (h, cw) in enumerate(zip(highlights, clip_words))]
+            for done, fut in enumerate(as_completed(futures), 1):
+                res = fut.result()  # propagate render errors
+                results[res["index"]] = res
+                update(progress=60 + int(38 * done / max(1, total)),
+                       message=f"Rendered {done} of {total}…",
+                       clips=[results[k] for k in sorted(results)])
+
+        clips = [results[k] for k in sorted(results)]
         update(stage="done", progress=100, message="Done!", clips=clips)
     finally:
         # Free disk: drop the work dir and the downloaded/uploaded source.

@@ -58,6 +58,7 @@ class JobRequest(BaseModel):
     captions: bool = True
     highlight: bool = True
     caption_style: str = "karaoke"
+    watermark: str = ""
     language: Optional[str] = None
     # Source: provide either a URL or a file already on the server (in INPUT_DIR).
     server_file: Optional[str] = None
@@ -85,7 +86,8 @@ def health():
 
 
 def _build_job_fields(
-    *, url, mode, reframe, captions, highlight, caption_style, language, start, end, num_clips
+    *, url, mode, reframe, captions, highlight, caption_style, language, start, end,
+    num_clips, watermark=""
 ) -> dict:
     """Validate shared inputs and build the kwargs for store.create()."""
     if mode not in VALID_MODE:
@@ -102,6 +104,7 @@ def _build_job_fields(
         captions=captions,
         highlight=highlight,
         caption_style=caption_style,
+        watermark=(watermark or "").strip()[:60],
         language=(language or None),
     )
 
@@ -155,6 +158,7 @@ def create_job(req: JobRequest):
         url="" if server_path else req.url.strip(), mode=req.mode, reframe=req.reframe,
         captions=req.captions, highlight=req.highlight, caption_style=req.caption_style,
         language=req.language, start=req.start, end=req.end, num_clips=req.num_clips,
+        watermark=req.watermark,
     )
     job = store.create(**fields)
     if server_path:
@@ -171,6 +175,7 @@ class UploadInit(BaseModel):
     captions: bool = True
     highlight: bool = True
     caption_style: str = "karaoke"
+    watermark: str = ""
     language: Optional[str] = None
     start: Optional[str] = None
     end: Optional[str] = None
@@ -228,6 +233,7 @@ def upload_init(req: UploadInit):
         url="", mode=req.mode, reframe=req.reframe, captions=req.captions,
         highlight=req.highlight, caption_style=req.caption_style,
         language=req.language, start=req.start, end=req.end, num_clips=req.num_clips,
+        watermark=req.watermark,
     )
     job = store.create(**fields)
     job.status = "uploading"

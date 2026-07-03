@@ -12,7 +12,8 @@ from backend.pipeline.captions import build_ass, group_words, _escape
 from backend.pipeline.reframe import reframe_filter, smart_crop_vf
 from backend.pipeline.render import slice_words
 from backend.pipeline.highlights import (
-    find_highlights, _dedupe, _title_from_transcript, _keyword_hashtags, Highlight,
+    find_highlights, _dedupe, _title_from_transcript, _keyword_hashtags,
+    snap_to_speech, Highlight,
 )
 
 
@@ -152,6 +153,29 @@ def test_keyword_hashtags_dedupe_and_cap():
           for i, w in enumerate("growth growth mindset mindset success success habits".split())]
     tags = _keyword_hashtags(ws, 0, 100)
     assert tags[0] == "shorts" and len(tags) == len(set(tags)) and len(tags) <= 6
+
+
+def test_build_ass_watermark():
+    ass = build_ass(_words(4), watermark="@creator", duration=10.0)
+    assert "Style: WM," in ass and ",WM,," in ass and "@creator" in ass
+    # watermark-only (captions off) still yields a valid event
+    only = build_ass([], watermark="@creator", duration=10.0)
+    assert ",WM,," in only
+    # no watermark event without a duration
+    assert ",WM,," not in build_ass(_words(4), watermark="@creator", duration=0)
+
+
+def test_snap_to_speech():
+    words = [{"start": 5.0, "end": 5.4, "text": "a"}, {"start": 5.5, "end": 5.9, "text": "b"},
+             {"start": 9.0, "end": 9.5, "text": "c"}]
+    # window cutting into the first word snaps back to its start (minus pad)
+    s, e = snap_to_speech(words, 5.2, 9.2, duration=60.0)
+    assert s == pytest.approx(4.8) and e == pytest.approx(9.7)
+    # no words in window -> unchanged
+    assert snap_to_speech(words, 20.0, 30.0, duration=60.0) == (20.0, 30.0)
+    # never exceeds video bounds
+    s2, e2 = snap_to_speech(words, 0.0, 100.0, duration=9.6)
+    assert s2 >= 0.0 and e2 <= 9.6
 
 
 def test_broll_query_and_no_key_fallback():

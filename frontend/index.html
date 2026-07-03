@@ -119,10 +119,16 @@
           <input type="text" id="language" placeholder="e.g. en, es, fr" maxlength="8" />
         </label>
 
-        <label class="field">
-          <span>Campaign tags / mention <small>(optional — added to every clip)</small></span>
-          <input type="text" id="campaign_tags" placeholder="#gaming #cod @brandhandle" />
-        </label>
+        <div class="row">
+          <label class="field">
+            <span>Campaign tags / mention <small>(optional)</small></span>
+            <input type="text" id="campaign_tags" placeholder="#gaming #cod @brandhandle" />
+          </label>
+          <label class="field">
+            <span>Watermark <small>(optional — burned onto video)</small></span>
+            <input type="text" id="watermark" placeholder="@creatorhandle" maxlength="60" />
+          </label>
+        </div>
 
         <button type="submit" id="submit-btn">Make Shorts</button>
       </form>

@@ -233,6 +233,11 @@ to publish the whole batch (pick Unlisted/Public/Private).
 **Clipping campaigns:** the form has a **Campaign tags / mention** field — put
 the hashtags / @handle / link a campaign requires (e.g. `#cod #mw4 @brand`) and
 they're stamped onto every clip's caption and YouTube description automatically.
+There's also a **Watermark** field: whatever you type (e.g. the campaign's
+required `@creatorhandle`) is burned onto the video itself, bottom-right, on
+every clip. Clips in a batch render **in parallel** (`CLIP_RENDER_WORKERS`,
+default = CPU count capped at 2), and auto-mode clip boundaries snap to word
+starts so clips never open mid-word.
 
 **Heads-up / limits:**
 - The YouTube API gives ~**6 uploads/day** by default (each upload costs 1600 of

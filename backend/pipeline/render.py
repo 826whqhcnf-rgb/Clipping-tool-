@@ -78,6 +78,7 @@ def render_clip(
     captions: bool,
     highlight: bool,
     caption_style: str = "karaoke",
+    watermark: str = "",
 ) -> str:
     """Render one clip to OUTPUT_DIR and return its output filename."""
     work = WORK_DIR / clip_id
@@ -86,10 +87,14 @@ def render_clip(
     vertical = work / "vertical.mp4"
     run(build_clip_cmd(source, vertical, start, end, reframe))
 
-    if captions and words:
+    burn_captions = captions and words
+    if burn_captions or watermark:
+        duration = (end - start) if end is not None and start is not None else 0.0
         ass = work / "captions.ass"
-        ass.write_text(build_ass(words, highlight=highlight, preset=caption_style),
-                       encoding="utf-8")
+        ass.write_text(
+            build_ass(words if burn_captions else [], highlight=highlight,
+                      preset=caption_style, watermark=watermark, duration=duration),
+            encoding="utf-8")
         # Run from the work dir so the subtitles filter gets a clean relative path.
         run(["ffmpeg", "-y", "-i", "vertical.mp4",
              "-vf", "subtitles=captions.ass",

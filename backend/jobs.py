@@ -22,6 +22,7 @@ class Job:
     highlight: bool
     language: Optional[str]
     caption_style: str = "karaoke"
+    watermark: str = ""          # e.g. a campaign's required @handle, burned in
     # Source: a local uploaded file to use instead of downloading from `url`.
     source_path: Optional[str] = None
     # Generate mode: the topic to write Shorts about, and the narration voice.

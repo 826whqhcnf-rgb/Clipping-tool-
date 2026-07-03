@@ -234,6 +234,21 @@ def _find_by_density(words, num_clips, min_len, max_len, duration) -> List[Highl
     return candidates  # overlap removal + numbering happens in find_highlights
 
 
+def snap_to_speech(words: List[Word], start: float, end: float,
+                   duration: float, pad: float = 0.20) -> tuple[float, float]:
+    """Snap a clip window to word boundaries so it never starts/ends mid-word.
+
+    Start moves to just before the first word inside the window; end moves to
+    just after the last word. Returns the window unchanged if no words overlap.
+    """
+    inside = [w for w in words if w["end"] > start and w["start"] < end]
+    if not inside:
+        return start, end
+    new_start = max(0.0, inside[0]["start"] - pad)
+    new_end = min(duration, inside[-1]["end"] + pad)
+    return (new_start, new_end) if new_end > new_start else (start, end)
+
+
 def _dedupe(highlights: List[Highlight], num_clips: int) -> List[Highlight]:
     """Greedily keep the highest-scoring non-overlapping clips."""
     chosen: List[Highlight] = []

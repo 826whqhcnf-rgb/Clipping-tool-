@@ -116,6 +116,7 @@ $("clip-form").addEventListener("submit", async (e) => {
       caption_style: $("caption_style").value,
       captions: $("captions").checked,
       highlight: $("highlight").checked,
+      watermark: $("watermark").value.trim(),
       language: $("language").value.trim() || null,
     };
     if (mode === "auto") {
