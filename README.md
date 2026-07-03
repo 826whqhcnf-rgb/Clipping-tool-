@@ -38,14 +38,16 @@ Paste a video URL and the tool will:
 
 ### 2. (Optional but recommended) Enable smart clip picking
 
-Auto mode is best with Claude. Set your Anthropic API key:
+Auto mode and Generate mode are best with an AI key. The free Gemini tier is
+the easiest ([aistudio.google.com/apikey](https://aistudio.google.com/apikey)):
 
 ```bash
-export ANTHROPIC_API_KEY=sk-ant-...
+export GEMINI_API_KEY=AIza...
 ```
 
-Without a key, Auto mode still works using a speech-density heuristic — it just
-won't be as good at finding the genuinely shareable moments.
+(`ANTHROPIC_API_KEY` works too.) Without a key, Auto mode still works using a
+speech-density heuristic — it just won't be as good at finding the genuinely
+shareable moments, and Generate mode needs a key for scripts.
 
 ### 3. Run it
 
@@ -104,11 +106,16 @@ backend/
   pipeline/
     download.py        yt-dlp wrapper
     transcribe.py      faster-whisper word-level transcription
-    highlights.py      Claude-powered (or heuristic) moment detection
-    reframe.py         9:16 ffmpeg filters (blur / crop / pad)
-    captions.py        Transcript → styled .ass subtitles
+    highlights.py      LLM (Gemini/Claude) or heuristic moment detection
+    reframe.py         9:16 ffmpeg filters (blur / face / crop / pad)
+    facecrop.py        OpenCV speaker detection for the smart crop
+    captions.py        Transcript → styled .ass subtitles (+ banner/watermark)
     render.py          Trim + reframe + burn captions for one clip
+    generate.py        Original narrated Shorts (scripts + TTS + compose)
+    tts.py             Free Edge text-to-speech with word timings
+    broll.py           Free Pexels stock-footage backgrounds
     process.py         Orchestrates the whole pipeline per job
+  youtube.py           OAuth device flow + YouTube upload
 frontend/
   index.html / styles.css / app.js   Single-page UI (no build step)
 run.sh                 One-command launcher
@@ -167,9 +174,13 @@ The frontend is just a client of a small REST API:
 
 - `POST /api/jobs` — start a job from a URL. Body: `{ url, mode, reframe,
   captions, highlight, language, num_clips?, start?, end? }`. Returns `{ id }`.
-- `POST /api/uploads` — start a job from an uploaded video file
-  (`multipart/form-data`: `file` + the same fields). Skips downloading
-  entirely — handy when a site blocks server-side downloads.
+- `POST /api/uploads/init` → `POST /api/uploads/{id}/chunk` (raw bytes,
+  repeated) → `POST /api/uploads/{id}/complete` — chunked file upload that
+  stays under proxy body-size limits. Skips downloading entirely.
+- `GET /api/files` + `server_file` on `/api/jobs` — clip a file already in
+  `data/input/`. `POST /api/generate` — original narrated Shorts from a topic.
+- `GET /api/jobs/{id}/zip` — download all of a job's clips. `/api/youtube/*` —
+  connect + post clips. `GET /api/voices` — TTS voices for Generate mode.
 - `GET /api/jobs/{id}` — poll status, progress, and finished `clips[]`.
 - `GET /api/clips/{clip_id}` — stream/download a rendered clip (supports HTTP
   range requests, so the in-page player can seek).
