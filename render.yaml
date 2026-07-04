@@ -1,0 +1,19 @@
+# One-click deploy on Render (https://render.com): New + → Blueprint → this repo.
+services:
+  - type: web
+    name: shorts-clipper
+    runtime: docker
+    plan: starter   # free tier's 0.1 CPU is too slow for video; starter is the realistic minimum
+    envVars:
+      - key: CLIP_PASSWORD
+        sync: false   # set your own password in the dashboard
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: PEXELS_API_KEY
+        sync: false
+      - key: YOUTUBE_CLIENT_ID
+        sync: false
+      - key: YOUTUBE_CLIENT_SECRET
+        sync: false
+      - key: CLIP_WHISPER_MODEL
+        value: tiny

@@ -1,3 +1,13 @@
+---
+title: Shorts Clipper
+emoji: 🎬
+colorFrom: purple
+colorTo: green
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # 🎬 Shorts Clipper
 
 Turn any video into ready-to-post, captioned vertical **YouTube Shorts** — a
@@ -144,6 +154,7 @@ Auto mode picks an AI provider by whichever key is set, in this order:
 | `CLIP_AUTO_MIN_LEN` / `CLIP_AUTO_MAX_LEN` | `15` / `60` | Auto-clip length bounds (seconds) |
 | `CLIP_AUTO_MAX_CLIPS` | `10` | Max clips Auto mode will produce |
 | `CLIP_MAX_SECONDS` | `180` | Max length for a single Manual clip |
+| `CLIP_PASSWORD` | — | Locks the app behind a sign-in page (set this when hosting publicly) |
 | `CLIP_COOKIES_FILE` | — | Path to a `cookies.txt` for sites that need login / a bot check (see Troubleshooting) |
 | `PORT` | `8000` | Server port (read by `run.sh`) |
 
@@ -186,6 +197,42 @@ The frontend is just a client of a small REST API:
   range requests, so the in-page player can seek).
 
 ---
+
+## Host it as a website (no Codespaces)
+
+The repo ships a `Dockerfile`, so the whole tool can run as an always-on
+website you just bookmark. **Set a `CLIP_PASSWORD` env var whenever it's
+public** — the app then shows a sign-in page and locks every endpoint (without
+it, anyone who finds the URL can render video on your server and post to your
+connected YouTube).
+
+**Option A — Hugging Face Spaces (free, best free hardware: 2 vCPU / 16 GB):**
+
+1. Create an account at huggingface.co, then **New Space** → SDK: **Docker**
+   → blank template. Free CPU hardware is fine.
+2. Push this repo to the Space (one-time, from a Codespace/any terminal):
+   ```bash
+   git remote add hf https://huggingface.co/spaces/YOURNAME/shorts-clipper
+   git push hf HEAD:main
+   ```
+   (username + a *write* access token from HF settings as the password)
+3. In the Space's **Settings → Variables and secrets**, add: `CLIP_PASSWORD`
+   (required), `GEMINI_API_KEY`, `PEXELS_API_KEY`, `YOUTUBE_CLIENT_ID`,
+   `YOUTUBE_CLIENT_SECRET`, and `CLIP_WHISPER_MODEL=tiny`.
+4. Your tool is live at `https://YOURNAME-shorts-clipper.hf.space` — bookmark
+   it. Set the Space to **Private** *or* rely on `CLIP_PASSWORD` (both is best).
+   Spaces sleep after ~48h idle and wake on visit (first load takes a minute).
+
+**Option B — Render (connects straight to GitHub, auto-deploys on push):**
+[render.com](https://render.com) → New → Blueprint → pick this repo
+(`render.yaml` is included) → fill in the env vars. Their free tier's 0.1 CPU
+is too slow for video rendering; the ~$7/mo Starter plan is the realistic
+minimum. Railway (~$5/mo usage-based) works the same way via the Dockerfile.
+
+**Heads-up for any host:** storage is ephemeral (finished clips disappear on
+restart — download them or post to YouTube promptly), the in-memory job store
+is single-user by design, and YouTube's bot wall still applies to datacenter
+IPs, so prefer Upload / On server / direct file links for sources.
 
 ## Generate original Shorts (no source video)
 

@@ -1,0 +1,14 @@
+.git
+.venv
+venv
+data
+models
+tests
+scripts
+__pycache__
+**/__pycache__
+.pytest_cache
+.devcontainer
+*.md
+run.sh
+requirements-dev.txt

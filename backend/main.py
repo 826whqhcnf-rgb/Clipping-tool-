@@ -1,6 +1,8 @@
 """FastAPI app: REST endpoints + static frontend for the Shorts Clipper."""
 from __future__ import annotations
 
+import hashlib
+import hmac
 import os
 import re
 from typing import Optional
@@ -11,7 +13,7 @@ import io
 import zipfile
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -41,6 +43,76 @@ async def no_store_frontend(request: Request, call_next):
     if not request.url.path.startswith("/api"):
         response.headers["Cache-Control"] = "no-store, must-revalidate"
     return response
+
+
+# --- Optional password gate (set CLIP_PASSWORD when hosting publicly) ---------
+AUTH_COOKIE = "clip_auth"
+
+
+def _auth_token() -> str:
+    """Cookie value that proves the password was entered (single-user tool)."""
+    return hashlib.sha256(f"clip:{os.environ['CLIP_PASSWORD']}".encode()).hexdigest()
+
+
+_LOGIN_PAGE = """<!DOCTYPE html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shorts Clipper — Sign in</title>
+<style>body{font-family:-apple-system,sans-serif;background:#0f1117;color:#e8eaf0;
+display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}
+form{background:#181b25;border:1px solid #2b303d;border-radius:14px;padding:28px;
+width:min(90vw,340px)}h1{font-size:1.2rem;margin:0 0 14px}input{width:100%;
+box-sizing:border-box;padding:11px;background:#20242f;border:1px solid #2b303d;
+border-radius:10px;color:#e8eaf0;font-size:1rem;margin-bottom:12px}
+button{width:100%;padding:12px;border:0;border-radius:10px;background:#6c5ce7;
+color:#fff;font-weight:700;font-size:1rem;cursor:pointer}
+p{color:#ff6b6b;font-size:.85rem;min-height:1em;margin:10px 0 0}</style></head>
+<body><form id="f"><h1>🎬 Shorts Clipper</h1>
+<input type="password" id="p" placeholder="Password" autofocus>
+<button>Sign in</button><p id="e"></p></form>
+<script>document.getElementById("f").onsubmit=async(ev)=>{ev.preventDefault();
+const r=await fetch("/api/login",{method:"POST",headers:{"Content-Type":"application/json"},
+body:JSON.stringify({password:document.getElementById("p").value})});
+if(r.ok){location.href="/";}else{document.getElementById("e").textContent="Wrong password";}};
+</script></body></html>"""
+
+
+@app.middleware("http")
+async def password_gate(request: Request, call_next):
+    """Require the CLIP_PASSWORD cookie for everything except the login flow.
+
+    No-op when CLIP_PASSWORD isn't set (local/private use stays friction-free).
+    """
+    if os.environ.get("CLIP_PASSWORD"):
+        path = request.url.path
+        if path not in ("/login", "/api/login"):
+            cookie = request.cookies.get(AUTH_COOKIE, "")
+            if not hmac.compare_digest(cookie, _auth_token()):
+                if path.startswith("/api"):
+                    return JSONResponse({"detail": "Not signed in."}, status_code=401)
+                return RedirectResponse("/login", status_code=302)
+    return await call_next(request)
+
+
+@app.get("/login")
+def login_page():
+    return HTMLResponse(_LOGIN_PAGE)
+
+
+class LoginRequest(BaseModel):
+    password: str = ""
+
+
+@app.post("/api/login")
+def login(req: LoginRequest):
+    expected = os.environ.get("CLIP_PASSWORD")
+    if not expected:
+        return {"ok": True}
+    if not hmac.compare_digest(req.password, expected):
+        raise HTTPException(401, "Wrong password.")
+    resp = JSONResponse({"ok": True})
+    resp.set_cookie(AUTH_COOKIE, _auth_token(), httponly=True, samesite="lax",
+                    max_age=60 * 60 * 24 * 90)
+    return resp
 
 VALID_REFRAME = {"blur", "crop", "pad", "face"}
 VALID_MODE = {"auto", "manual"}
