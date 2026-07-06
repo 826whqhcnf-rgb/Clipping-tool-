@@ -198,6 +198,28 @@ The frontend is just a client of a small REST API:
 
 ---
 
+## Watch-folder automation (drop file → posted Shorts)
+
+The maximum honest automation for clipping campaigns. Enable it with
+`CLIP_WATCH=1` before starting the server (or run it standalone with
+`python -m backend.watcher`). Then:
+
+1. Edit **`data/campaign.json`** once per campaign (auto-created on first run):
+   number of clips, reframe, caption style, `watermark`, `campaign_tags`
+   (hashtags + `@mention`), `auto_post`, and `privacy`.
+2. **Drop a video into `data/watch/`.** The watcher waits for the copy to
+   finish, auto-clips it with the preset, and — if a YouTube account is
+   connected and `auto_post` is true — posts every clip.
+3. Collect your results in `data/watch/processed/<name>.links.txt` (titles,
+   timestamps, scores, and the `youtu.be` links to paste into the campaign) and
+   `data/watch/posted_links.txt` (all URLs, append-only). Sources are archived
+   to `processed/`; anything that errors is quarantined in `failed/` with an
+   `.error.txt` explaining why.
+
+Your daily loop becomes: drop file → review what got posted → paste links into
+the campaign. Keep `privacy` as `unlisted` if you want to check clips before
+flipping them public.
+
 ## Host it as a website (no Codespaces)
 
 The repo ships a `Dockerfile`, so the whole tool can run as an always-on

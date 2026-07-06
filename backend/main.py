@@ -36,6 +36,14 @@ from .utils import have_binary, parse_timestamp
 app = FastAPI(title="Shorts Clipper")
 
 
+@app.on_event("startup")
+def _maybe_start_watcher():
+    """Opt-in watch-folder automation (drop file → clips → posted)."""
+    if os.environ.get("CLIP_WATCH") == "1":
+        from .watcher import start_background
+        start_background()
+
+
 @app.middleware("http")
 async def no_store_frontend(request: Request, call_next):
     """Stop browsers caching the HTML/JS/CSS, so updates always show up."""
