@@ -46,30 +46,24 @@ Paste a video URL and the tool will:
   - Ubuntu/Debian: `sudo apt install ffmpeg`
   - Windows: [download from ffmpeg.org](https://ffmpeg.org/download.html)
 
-### 2. (Optional but recommended) Enable smart clip picking
-
-Auto mode and Generate mode are best with an AI key. The free Gemini tier is
-the easiest ([aistudio.google.com/apikey](https://aistudio.google.com/apikey)):
+### 2. Run the setup wizard
 
 ```bash
-export GEMINI_API_KEY=AIza...
+./setup.sh
 ```
 
-(`ANTHROPIC_API_KEY` works too.) Without a key, Auto mode still works using a
-speech-density heuristic — it just won't be as good at finding the genuinely
-shareable moments, and Generate mode needs a key for scripts.
+It checks your computer, installs everything, then asks for your keys in plain
+questions (all optional — press Enter to skip any). Answers are saved to a
+`.env` file the app reads automatically; re-run `./setup.sh --keys-only`
+whenever you want to add or change a key. No `export`, no shell profiles.
 
-### 3. Run it
+### 3. Start it
 
 ```bash
 ./run.sh
 ```
 
 Then open **http://localhost:8000**.
-
-(`run.sh` creates a virtualenv and installs dependencies on first run. To do it
-manually: `pip install -r requirements.txt` then
-`uvicorn backend.main:app --reload`.)
 
 ### Run it in the browser (GitHub Codespaces)
 

@@ -11,6 +11,27 @@ from pathlib import Path
 # Project root (the directory that contains `backend/` and `frontend/`).
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+
+def _load_dotenv(path: Path) -> None:
+    """Load KEY=VALUE lines from a .env file, without overriding real env vars.
+
+    Lets ./setup.sh store keys in one simple file instead of shell profiles.
+    """
+    try:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, value = line.partition("=")
+            key, value = key.strip(), value.strip().strip('"').strip("'")
+            if key and key not in os.environ:
+                os.environ[key] = value
+    except FileNotFoundError:
+        pass
+
+
+_load_dotenv(BASE_DIR / ".env")
+
 # Where downloads, intermediate files and finished clips live.
 DATA_DIR = Path(os.environ.get("CLIP_DATA_DIR", BASE_DIR / "data"))
 DOWNLOAD_DIR = DATA_DIR / "downloads"

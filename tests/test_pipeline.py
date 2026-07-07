@@ -21,6 +21,22 @@ def _words(n, step=0.4, dur=0.35):
     return [{"start": i * step, "end": i * step + dur, "text": f"w{i}"} for i in range(n)]
 
 
+# --- config ------------------------------------------------------------------
+def test_dotenv_loader(tmp_path):
+    from backend.config import _load_dotenv
+    f = tmp_path / ".env"
+    f.write_text('# comment\nTESTDOTENV_A=hello\nTESTDOTENV_B="quoted"\n\nbadline\n')
+    os.environ["TESTDOTENV_B"] = "already-set"
+    try:
+        _load_dotenv(f)
+        assert os.environ["TESTDOTENV_A"] == "hello"          # loaded
+        assert os.environ["TESTDOTENV_B"] == "already-set"    # real env wins
+        _load_dotenv(tmp_path / "missing.env")                # no error
+    finally:
+        os.environ.pop("TESTDOTENV_A", None)
+        os.environ.pop("TESTDOTENV_B", None)
+
+
 # --- utils -------------------------------------------------------------------
 @pytest.mark.parametrize("value,expected", [
     ("83", 83.0), ("1:23", 83.0), ("1:02:03", 3723.0), ("45.5", 45.5), ("", None), (None, None),
